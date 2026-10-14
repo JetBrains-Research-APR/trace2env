@@ -360,6 +360,12 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--split", choices=["train", "validation", "test", "all"], default="train")
     export.add_argument("--manifest", help="Where to write the SplitManifest (default: <output>/split_manifest.json)")
 
+    acp = subparsers.add_parser("acp-export", help="Convert ACP run-history exports into ordered episodes without a model")
+    acp.add_argument("inputs", nargs="+", help="Run-history JSON files containing runs[].messages[].message")
+    acp.add_argument("--output", required=True, help="Fresh directory receiving episodes/, incomplete/, split_manifest.json and report.json")
+    acp.add_argument("--assign-split", choices=["train", "validation", "test"], default="train",
+                     help="Explicit split for usable episodes (default: train); incomplete runs are retained separately")
+
     atif = subparsers.add_parser("atif-export", help="Convert Harbor/Terminus-2 ATIF trajectories into episodes and benchmark rows")
     atif.add_argument("inputs", nargs="+", help="Harbor job directories (searched recursively for trajectory.json)")
     atif.add_argument("--output", required=True, help="Directory receiving one episode JSON per trial")
@@ -684,6 +690,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_json(manifest_path, manifest)
         print(json.dumps({"trajectories": len(paths), "records": len(rows), "output": str(Path(args.output).resolve()),
                           "manifest": str(manifest_path.resolve())}))
+        return 0
+
+    if args.command == "acp-export":
+        from trace2env.acp_traces import export_histories
+
+        _, _, report = export_histories(args.inputs, args.output, split=args.assign_split)
+        print(json.dumps({key: value for key, value in report.items() if key != "run_summaries"}
+                         | {"output": str(Path(args.output).resolve())}))
         return 0
 
     if args.command == "atif-export":

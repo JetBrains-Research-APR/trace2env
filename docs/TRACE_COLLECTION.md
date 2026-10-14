@@ -3,13 +3,14 @@
 Trace2Env builds a worldbook from recorded interactions of the environment: for each one a sequence of actions and the
 observations the real environment returned. Any source works as long as the actions and observations are recorded
 verbatim; nothing in this repository rewrites observations. The converters below produce the episode layout that
-`reconstruct` and `scripts/pilot_stages.py` ingest (one `user` instruction event, then alternating `action` /
-`observation` events) together with a `SplitManifest` that assigns every trajectory family to `train`, `validation`
-or `test`. Construction, validation and evaluation families must stay disjoint.
+`reconstruct` and `scripts/pilot_stages.py` ingest (a `user` instruction and ordered `action` /
+`observation` events; correlated calls may overlap) together with a `SplitManifest` that assigns every trajectory
+family to `train`, `validation` or `test`. Construction, validation and evaluation families must stay disjoint.
 
 | Source | Converter | Notes |
 |---|---|---|
 | Any JSON / JSONL / role-prefixed text trace | `trace2env ingest FILES --output DIR` (`reconstruct` runs it too) | deterministic parse; episodes that lack clear action/observation kinds get one annotation model call that marks spans without rewriting text |
+| ACP automation run-history exports | `trace2env acp-export FILES --output DIR` | uniform `execute(payload)` actions; call IDs and actual ordering preserved; incomplete runs separated; see [ACP_TRACES.md](ACP_TRACES.md) |
 | Terminal-Bench 2.0 runs with Harbor and the Terminus-2 agent (ATIF trajectories) | `scripts/collect_tb2.sh`, then `trace2env atif-export` | the terminal worldbook of the paper: 20 finished, reward-1 trajectories on tasks whose benchmark trajectories do not match a trace |
 | WebArena through Playwright MCP | `scripts/webarena/host_sites.sh up`, `scripts/collect_webarena.py` | self-hosted WebArena under the benchmark hostnames; `@playwright/mcp` pinned to the version whose result text matches the benchmark's; `browser_snapshot` calls are folded into the preceding action's observation |
 | AgentWorldBench trajectories (Android, SWE cross-fits) | `trace2env awb-export`, `experiments/android/make_folds.py`, `experiments/swe/make_folds.py` | the longest visible record of each trajectory becomes one episode; task-grouped k=5 folds, one worldbook per sub-source and fold, every record predicted out of fold |
