@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from trace2env.cli import _add_model_options, _llm, _text_argument  # noqa: E402
+from trace2env.llm_config import litellm_base_url
 from trace2env.compiler import EnvironmentCompiler  # noqa: E402
 from trace2env.models import (  # noqa: E402
     Episode,
@@ -366,7 +367,7 @@ def main() -> None:
         "stage": args.stage, "version": version, "note": args.note, "started": utc_now(),
         "upstream": {k: v.name for k, v in upstream.items()},
         "config": config.model_dump(mode="json"),
-        "model": {"model": args.model, "provider": args.provider, "base_url": args.base_url,
+        "model": {"model": args.model, "provider": args.provider, "base_url": litellm_base_url(),
                   "reasoning_effort": args.reasoning_effort, "chat_reasoning_effort": args.chat_reasoning_effort,
                   "max_output_tokens": args.max_output_tokens, "cache_dir": args.cache_dir},
         "options": {"tasks": args.tasks, "limit": args.limit, "workers": args.workers, "episodes": args.episodes,

@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from trace2env.llm_config import create_llm_client, litellm_base_url
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "baseline" / "Word2World"
@@ -158,7 +160,7 @@ def run_task(context: dict[str, Any], client: Any, *, agent_model: str, wm_model
     started = time.monotonic()
     for turn_number in range(1, max_steps + 1):
         try:
-            agent_response = client.chat.completions.create(model=agent_model, messages=agent_history)
+            agent_response = client.chat.completions.create(model=agent_model, messages=agent_history, temperature=1.0)
             react = agent_response.choices[0].message.content
             if not isinstance(react, str) or not react.strip():
                 raise RuntimeError("Task agent returned empty text")
@@ -167,7 +169,7 @@ def run_task(context: dict[str, Any], client: Any, *, agent_model: str, wm_model
 
             wm_history.append({"role": "user", "content": action})
             wm_request = [dict(row) for row in wm_history]
-            wm_response = client.chat.completions.create(model=wm_model, messages=wm_request)
+            wm_response = client.chat.completions.create(model=wm_model, messages=wm_request, temperature=1.0)
             raw_observation = wm_response.choices[0].message.content
             if not isinstance(raw_observation, str) or not raw_observation.strip():
                 raise RuntimeError("World model returned empty text")
@@ -187,8 +189,7 @@ def run_task(context: dict[str, Any], client: Any, *, agent_model: str, wm_model
             status = "api_error"
             error = f"{type(exc).__name__}: {exc}"
             # Provider exceptions can contain request details. Never persist a key.
-            for name in ("OPENROUTER_API_KEY", "OPENAI_API_KEY"):
-                secret = os.environ.get(name)
+            for secret in (getattr(client, "api_key", None), os.environ.get("LITELLM_API_KEY")):
                 if secret:
                     error = error.replace(secret, "[REDACTED]")
             break
@@ -230,10 +231,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--max-steps", type=int, default=50)
     parser.add_argument("--max-workers", type=int, default=8)
-    parser.add_argument("--agent-model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--wm-model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
-    parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--agent-model", default="openai/gpt-6.1-sol")
+    parser.add_argument("--wm-model", default="openai/gpt-6.1-sol")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if min(args.limit, args.max_steps, args.max_workers) < 1:
@@ -249,7 +248,7 @@ def main() -> int:
                 "agent_initial_sha256": [row["agent_initial_sha256"] for row in contexts],
                 "wm_initial_sha256": [row["wm_initial_sha256"] for row in contexts],
                 "agent_model": args.agent_model, "wm_model": args.wm_model,
-                "base_url": args.base_url, "max_steps": args.max_steps}
+                "base_url": litellm_base_url(), "max_steps": args.max_steps}
     manifest_path = args.output / "selection.json"
     if manifest_path.exists() and json.loads(manifest_path.read_text(encoding="utf-8")) != manifest:
         parser.error("Output selection/configuration differs; use a fresh output directory")
@@ -258,12 +257,8 @@ def main() -> int:
         print(json.dumps({"selected": len(contexts), "first": contexts[0]["task"],
                           "last": contexts[-1]["task"]}, indent=2))
         return 0
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        parser.error(f"Set {args.api_key_env} in the environment; do not pass it on the command line")
-    from openai import OpenAI
+    client = create_llm_client(timeout=180, max_retries=2)
 
-    client = OpenAI(api_key=api_key, base_url=args.base_url, timeout=180, max_retries=2)
     records = []
     pending = []
     for context in contexts:

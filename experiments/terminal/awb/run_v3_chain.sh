@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 A="work/exp-v1_20_r=1/awb"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
+
 echo "[$(date -Is)] v3 chain start"
 "$A/run_ablation.sh" v3 "packages/v1_20_r=1" --features default,evidence --agent-max-output-tokens 16384 > "$A/v3.log" 2>&1
 echo "[$(date -Is)] predictions done: $(wc -l < "$A/pred-v3.jsonl")"

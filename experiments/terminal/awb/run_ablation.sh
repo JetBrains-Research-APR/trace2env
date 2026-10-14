@@ -11,8 +11,8 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 LABEL="$1"; PKG_REL="$2"; shift 2
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"; PKG="$EXP/$PKG_REL"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+
+OR=(--provider chat --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
 sha256sum "$PKG/manifest.json" | cut -c1-16 > "$A/package-manifest-$LABEL.sha256"
 echo "[$(date -Is)] $LABEL package=$PKG_REL ($(cat "$A/package-manifest-$LABEL.sha256")) extra: $* start"
 for i in 0 1 2 3; do

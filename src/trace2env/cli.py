@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -53,8 +52,8 @@ from trace2env.replay import evaluate_package
 from trace2env.runtime import RuntimeHarness
 from trace2env.storage import read_json, read_jsonl, write_json, write_jsonl
 
-DEFAULT_MODEL = "gpt-5.6-sol"
-DEFAULT_JUDGE_MODEL = "gpt-5.2-2025-12-11"
+DEFAULT_MODEL = "openai/gpt-6.1-sol"
+DEFAULT_JUDGE_MODEL = "openai/gpt-5.2-2025-12-11"
 
 
 def _json_argument(value: str) -> dict:
@@ -72,12 +71,6 @@ def _nonnegative_int(value: str) -> int:
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be nonnegative")
     return parsed
-
-
-def _api_key(args: argparse.Namespace, attribute: str = "api_key_env") -> str | None:
-    """Keys are read from a named environment variable so they never appear on a command line."""
-    name = getattr(args, attribute, None) or "OPENAI_API_KEY"
-    return os.environ.get(name)
 
 
 def _chat_reasoning(args: argparse.Namespace) -> str | None:
@@ -159,28 +152,27 @@ def _resolved_features(args: argparse.Namespace) -> set[str]:
 
 
 def _llm(args: argparse.Namespace, *, max_tokens: int | None = None):
-    base_url = getattr(args, "base_url", None)
     if getattr(args, "provider", "responses") == "chat":
-        provider = OpenAIChatStructuredLLM(model=args.model, base_url=base_url, api_key=_api_key(args),
-                                           temperature=getattr(args, "structured_temperature", None),
+        provider = OpenAIChatStructuredLLM(model=args.model,
+                                           temperature=getattr(args, "structured_temperature", 1.0),
                                            reasoning_effort=_chat_reasoning(args), reasoning=_chat_reasoning_json(args),
                                            provider_routing=_chat_provider_json(args),
                                            max_tokens=max_tokens or getattr(args, "max_output_tokens", None) or 65536,
                                            schema_mode=getattr(args, "chat_schema_mode", "json_schema"))
     else:
-        provider = OpenAIResponsesLLM(model=args.model, reasoning_effort=args.reasoning_effort, base_url=base_url,
-                                      api_key=_api_key(args))
+        provider = OpenAIResponsesLLM(model=args.model, reasoning_effort=args.reasoning_effort,
+                                      temperature=getattr(args, "structured_temperature", 1.0))
     cache_dir = getattr(args, "cache_dir", None)
     llm = CachedLLM(provider, cache_dir) if cache_dir else provider
     call_log = getattr(args, "call_log", None)
     return TracingLLM(llm, call_log) if call_log else llm
 
 
-def _chat_llm(args: argparse.Namespace, *, model: str, base_url: str | None, key_attribute: str = "api_key_env"):
-    provider = OpenAIChatLLM(model=model, base_url=base_url, api_key=_api_key(args, key_attribute),
+def _chat_llm(args: argparse.Namespace, *, model: str, judge: bool = False):
+    provider = OpenAIChatLLM(model=model,
                              temperature=args.temperature, max_tokens=args.max_tokens,
-                             reasoning=_chat_reasoning_json(args) if key_attribute == "api_key_env" else None,
-                             provider_routing=_chat_provider_json(args) if key_attribute == "api_key_env" else None)
+                             reasoning=_chat_reasoning_json(args) if not judge else None,
+                             provider_routing=_chat_provider_json(args) if not judge else None)
     cache_dir = getattr(args, "cache_dir", None)
     return CachedChatLLM(provider, cache_dir) if cache_dir else provider
 
@@ -189,8 +181,8 @@ def _agent_llm(args: argparse.Namespace):
     """The world-model agent: native function calling, or typed turns over the structured provider."""
     cap = getattr(args, "agent_max_output_tokens", None)
     if getattr(args, "agent_transport", "structured") == "tools":
-        provider = OpenAIToolLLM(model=args.model, base_url=getattr(args, "base_url", None), api_key=_api_key(args),
-                                 temperature=getattr(args, "structured_temperature", None),
+        provider = OpenAIToolLLM(model=args.model,
+                                 temperature=getattr(args, "structured_temperature", 1.0),
                                  reasoning_effort=_chat_reasoning(args), reasoning=_chat_reasoning_json(args),
                                  provider_routing=_chat_provider_json(args),
                                  **({"max_tokens": cap} if cap else {}))
@@ -221,14 +213,11 @@ def _add_model_options(parser: argparse.ArgumentParser) -> None:
                              "(response_format json_schema, the reported runs) or json_object (response_format json_object "
                              "with the schema quoted in the system text, for Anthropic models via OpenRouter, whose "
                              "schema-constrained decoding rejects Any-typed fields and returns free-form maps empty)")
-    parser.add_argument("--structured-temperature", type=float, default=None,
-                        help="Sampling temperature for structured/tool chat calls; omitted by default (reasoning models reject it)")
+    parser.add_argument("--structured-temperature", type=float, default=1.0,
+                        help="Sampling temperature for structured and tool calls (default 1.0)")
     parser.add_argument("--max-output-tokens", type=int, default=65536,
-                        help="Output token limit for structured chat calls (default 65536, sized for gpt-5.6-sol: induction "
+                        help="Output token limit for structured chat calls (default 65536, sized for gpt-6.1-sol: induction "
                              "results with provenance and long tracked screens exceed smaller limits)")
-    parser.add_argument("--base-url", help="OpenAI-compatible endpoint (OpenRouter, vLLM, SGLang, ...)")
-    parser.add_argument("--api-key-env", default="OPENAI_API_KEY",
-                        help="Environment variable holding the API key (e.g. OPENROUTER_API_KEY); EMPTY for local servers")
     parser.add_argument("--provider", choices=["responses", "chat"], default="responses",
                         help="Structured-call transport: the OpenAI Responses API or Chat Completions JSON schema")
     parser.add_argument("--cache-dir")
@@ -238,7 +227,7 @@ def _add_model_options(parser: argparse.ArgumentParser) -> None:
 def _add_agent_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--agent-transport", choices=["structured", "tools"], default="structured",
                         help="How the world-model agent runs: typed AgentTurn calls over --provider, or native "
-                             "function calling over Chat Completions (--base-url servers such as vLLM)")
+                             "function calling over Chat Completions through LiteLLM")
     parser.add_argument("--fast-path", choices=["confident", "always", "never"], default="confident",
                         help="When an applicable rule may short-circuit the agent: confident (templated, high "
                              "confidence), always, or never")
@@ -336,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
     long_run.add_argument("--attempts", type=int, default=1, help="Fresh attempts per task (pass@k up to this value)")
     long_run.add_argument("--max-steps", type=int, default=50, help="Maximum task-agent actions per attempt")
     long_run.add_argument("--task-model", help="Task-agent model (defaults to --model)")
-    long_run.add_argument("--task-temperature", type=float, help="Task-agent sampling temperature for --provider chat")
+    long_run.add_argument("--task-temperature", type=float, default=1.0, help="Task-agent sampling temperature (default 1.0)")
     long_run.add_argument("--allow-unvalidated", action="store_true", help="Allow a candidate package")
     _add_model_options(long_run)
     long_run.add_argument("--agent-transport", choices=["structured", "tools"], default="structured")
@@ -510,7 +499,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--allow-unvalidated", action="store_true", help="Evaluate a candidate package")
     run.add_argument("--no-model", action="store_true", help="Agentic mode with rules only: no tracking, agent, or rendering model")
     run.add_argument("--session-root", help="Keep per-trajectory sessions (state, memory, audits) under this directory")
-    run.add_argument("--temperature", type=float, default=0.6, help="Prompting-baseline sampling temperature (official default)")
+    run.add_argument("--temperature", type=float, default=1.0, help="Prompting-baseline sampling temperature (default 1.0)")
     run.add_argument("--max-tokens", type=int, default=32768)
     _add_model_options(run)
     _add_agent_options(run)
@@ -519,9 +508,6 @@ def build_parser() -> argparse.ArgumentParser:
     judge.add_argument("--predictions", required=True)
     judge.add_argument("--output", required=True, help="Judged JSONL with the official score fields")
     judge.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
-    judge.add_argument("--judge-base-url")
-    judge.add_argument("--judge-api-key-env", default="OPENAI_API_KEY",
-                       help="Environment variable holding the judge API key")
     judge.add_argument("--temperature", type=float, default=0.6)
     judge.add_argument("--max-tokens", type=int, default=32768)
     judge.add_argument("--max-retries", type=int, default=3)
@@ -896,7 +882,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             if args.mode == "envpack_prompting" and not args.package:
                 raise ValueError("--mode envpack_prompting requires --package")
-            runner = AgentWorldRunner(mode=args.mode, chat_llm=_chat_llm(args, model=args.model, base_url=args.base_url),
+            runner = AgentWorldRunner(mode=args.mode, chat_llm=_chat_llm(args, model=args.model),
                                       rag_corpus=_trace_corpus(args) if args.mode == "prompting_rag" else None,
                                       rag_top_k=args.rag_top_k, rag_turn_chars=args.rag_turn_chars, rag_style=args.rag_style,
                                       package_dir=args.package if args.mode == "envpack_prompting" else None,
@@ -911,7 +897,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "awb-judge":
         rows = read_jsonl(Path(args.predictions))
-        llm = _chat_llm(args, model=args.judge_model, base_url=args.judge_base_url, key_attribute="judge_api_key_env")
+        llm = _chat_llm(args, model=args.judge_model, judge=True)
         judged = judge_rows(rows, llm, max_retries=args.max_retries, progress=_progress("awb-judge"))
         write_jsonl(Path(args.output), judged)
         summary = aggregate_scores(judged)

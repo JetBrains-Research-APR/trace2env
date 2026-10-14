@@ -7,9 +7,9 @@ SOURCE=work/exp-alfworld-real/trace2env-40-success-v1
 BUILD="$SOURCE/build"
 LABEL="${PACKAGE_LABEL:-alfworld-40-success-v1}"
 PY="${PYTHON:-python3}"
-MODEL="${MODEL:-openai/gpt-5.6-sol}"
-BASE_URL="${BASE_URL:-https://openrouter.ai/api/v1}"
-API_KEY_ENV="${API_KEY_ENV:-OPENROUTER_API_KEY}"
+MODEL="${MODEL:-openai/gpt-6.1-sol}"
+
+
 STAGES="${STAGES:-ingest extract schema rules renderers notes compile}"
 
 "$PY" -c 'import json, pathlib, sys
@@ -22,7 +22,7 @@ if not summary["complete"] or len(traces) != 40 or len({tuple(row["signature"]) 
 if any(not (p / row["trace"]).is_file() for row in traces):
     raise SystemExit("A selected trace file is missing")' "$SOURCE"
 
-OPTIONS=(--provider chat --base-url "$BASE_URL" --api-key-env "$API_KEY_ENV"
+OPTIONS=(--provider chat
          --model "$MODEL" --chat-reasoning-effort medium
          --max-output-tokens 65536 --max-prompt-bytes 600000 --induction-batch-size 100)
 for stage in $STAGES; do

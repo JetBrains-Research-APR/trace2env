@@ -33,8 +33,8 @@ PYTHONPATH=src python -m trace2env envscaler-long-horizon \
 ```
 
 Use a fresh output directory and a compatible model endpoint. The task agent uses
-`--model` unless `--task-model` is set; `--task-temperature` applies to chat models
-that accept it. Its disk cache is disabled, so attempts make fresh calls, though
+`--model` unless `--task-model` is set; `--task-temperature` defaults to `1.0`
+and applies to both Responses and chat calls. Its disk cache is disabled, so attempts make fresh calls, though
 deterministic settings can still give duplicate trajectories. Repeat `--task-id`
 instead of `--benchmark-dir` for a smaller smoke test; that does not establish a
 held-out split. The benchmark selector reads only rollout task IDs and checks

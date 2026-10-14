@@ -3,7 +3,7 @@
 # makes every transition a paid call exactly once), then induce and compile the five folds in parallel.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
-: "${OPENROUTER_API_KEY:?}"
+
 EXP="work/exp-android-cv"
 for style in "${@:-json phone unparsed}"; do
   (

@@ -5,8 +5,8 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 LABEL="$1"; FEATURES="$2"
 A="work/exp-v1_20_r=1/awb"; PKG="work/exp-v1_20_r=1/packages/v1_20_r=1"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "$A/judge-cache")
+OR=(--provider chat --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "$A/judge-cache")
 sha256sum "$PKG/manifest.json" | cut -c1-16 > "$A/package-manifest-$LABEL.sha256"
 echo "[$(date -Is)] $LABEL features=$FEATURES start (package $(cat $A/package-manifest-$LABEL.sha256))"
 for i in 0 1 2 3; do

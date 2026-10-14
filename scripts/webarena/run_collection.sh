@@ -6,9 +6,8 @@
 set -euo pipefail
 BATCH=$1; IDS=$2
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-export OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-$(cat ~/.config/trace2env/openrouter_key)}   # Node 18+ must be on PATH
 exec python scripts/collect_webarena.py --task-list work/webarena/test.raw.json --ids "$IDS" --output work/webarena/traces \
   --node "$(command -v node)" --mcp-cli scripts/webarena/node_modules/@playwright/mcp/cli.js \
-  --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.6-sol --api-key-env OPENROUTER_API_KEY \
+  --model openai/gpt-6.1-sol \
   --reasoning-effort medium --max-output-tokens 8192 --max-steps 30 --keep-results 6 --run r1 \
   > "work/webarena/traces/run-$BATCH.log" 2>&1

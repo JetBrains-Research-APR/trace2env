@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from trace2env.llm_config import create_llm_client
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "baseline" / "Word2World"
@@ -124,7 +126,7 @@ def run_attempt(wrapper: Any, client: Any, *, task: dict[str, Any], attempt: int
                              "\nAVAILABLE ACTIONS: " + ",".join(latest_actions)})
         for _ in range(max_rounds):
             try:
-                response = client.chat.completions.create(model=model, messages=conversation)
+                response = client.chat.completions.create(model=model, messages=conversation, temperature=1.0)
                 generated = response.choices[0].message.content
                 if not isinstance(generated, str) or not generated.strip():
                     raise RuntimeError("Model returned no action text")
@@ -179,9 +181,7 @@ def main() -> int:
     parser.add_argument("--test-file", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True, help="Directory containing json_2.1.1/ and logic/")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", default="gpt-5.6-sol")
-    parser.add_argument("--base-url", help="OpenAI-compatible Chat Completions endpoint")
-    parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    parser.add_argument("--model", default="openai/gpt-6.1-sol")
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--start-index", type=int, default=0, help="Zero-based offset in Word2World test ordering")
     parser.add_argument("--attempts", type=int, default=1)
@@ -221,10 +221,8 @@ def main() -> int:
     if args.dry_run:
         print(json.dumps({"selected": len(tasks), "first_item": tasks[0], "last_item": tasks[-1]}, indent=2))
         return 0
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        parser.error(f"Set {args.api_key_env} in the environment; do not pass API keys on the command line")
-    from openai import OpenAI
+    client = create_llm_client(timeout=180, max_retries=2)
+    api_key = client.api_key
 
     source = BASELINE / "AgentGym" / "agentenv-alfworld"
     # ALFWorld imports initialize their data directory before the wrapper is
@@ -235,7 +233,6 @@ def main() -> int:
 
     wrapper = ALFWorld_Wrapper(data_path=str(args.data_root.resolve()),
                                config_path=str(source / "configs" / "base_config.yaml"))
-    client = OpenAI(api_key=api_key, base_url=args.base_url, timeout=180, max_retries=2)
     pending = []
     records = []
     for task in tasks:

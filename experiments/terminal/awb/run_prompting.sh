@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+OR=(--provider chat --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
 echo "[$(date -Is)] prompting baseline start"
 for i in 0 1 2 3; do
   python -m trace2env awb-run "$A/shards/shard$i.jsonl" --mode prompting --split all "${OR[@]}" --cache-dir "$A/cache" \

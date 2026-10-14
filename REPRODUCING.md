@@ -32,20 +32,23 @@ The three Trace2Env labels differ only in the Applicability Gate's identity sign
 | EnvScaler rollouts and environment definitions | on request (unpack into `work/envscaler/`), converted with `trace2env envscaler-export` (`experiments/envscaler/run_export.sh`) |
 | ALFWorld and SciWorld | the `baseline/Word2World` submodule (task lists, ALFWorld grammar, AgentGym adapters) plus the simulators themselves ([docs/ALFWORLD_REAL.md](docs/ALFWORLD_REAL.md), [docs/ALFWORLD_TRACE2ENV.md](docs/ALFWORLD_TRACE2ENV.md)) |
 | Frozen worldbooks, predictions, judge outputs, call logs of the reported runs | the Terminal worldbook is published on [Hugging Face](https://huggingface.co/datasets/Quanyu001/trace2env-worldbook-terminal) (it also runs the live demo); the others are available on request and unpack into `work/` with the layout the scripts expect |
-| Model access | an OpenAI-compatible endpoint: the reported runs used `openai/gpt-5.6-sol` through OpenRouter (`OPENROUTER_API_KEY`) and `deepseek-v4.1-flash` through DeepSeek's API (`DEEPSEEK_API_KEY`); the judge is `openai/gpt-5.2` through OpenRouter |
+| Model access | the internal LiteLLM gateway (`LITELLM_API_BASE` and `LITELLM_API_KEY` in `.env`); historical reported runs used `openai/gpt-5.6-sol` through OpenRouter (`OPENROUTER_API_KEY`) and `deepseek-v4.1-flash` through DeepSeek's API (`DEEPSEEK_API_KEY`); the judge is `openai/gpt-5.2` through OpenRouter |
 
 Every worldbook's `manifest.json` lists the SHA-256 of each of its files, and the launchers record the manifest hash of
-every worldbook they ran, so a reproduction can check that it used the same one. Keys are read from environment
-variables (`--api-key-env`); never put them on a command line.
+every worldbook they ran, so a reproduction can check that it used the same one. Keys are read from `.env` or the environment using `LITELLM_API_KEY`; never put them on a command line.
+
+Current launchers default to `openai/gpt-6.1-sol` and non-judge temperature `1.0`.
+The descriptions and archived results below record the original paper settings.
+See [LiteLLM usage](docs/LITELLM.md) for the current configuration and overrides.
 
 ## Worldbook construction
 
 All worldbooks were built with `gpt-5.6-sol` through the stage-by-stage driver, with the library defaults:
 
 ```bash
-export OPENROUTER_API_KEY=...
-MODEL=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY \
-       --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+# Configure the LiteLLM URL and key in .env first.
+MODEL=(--provider chat \
+       --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
 python scripts/pilot_stages.py WORK ingest --episodes EPISODES --split-manifest MANIFEST \
   --environment-id ID --name NAME --description @DESCRIPTION.md --domain terminal "${MODEL[@]}"
 python scripts/pilot_stages.py WORK extract --workers 6 "${MODEL[@]}"
@@ -77,14 +80,14 @@ launcher `experiments/terminal/backbones/run_heldout_systems.sh` runs all five s
 
 Common agentic flags: `--allow-unvalidated --official-input --features default,evidence --effect-rejection
 keep_observation --agent-max-output-tokens 16384 --environment-prompt-chars 24000` (both defaults) with the backbone's
-model options. GPT: `--provider chat --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.6-sol
---chat-reasoning-effort medium --max-output-tokens 65536`. DeepSeek: `--base-url https://api.deepseek.com --model
-deepseek-v4.1-flash --chat-reasoning-effort low --agent-transport tools --agent-max-output-tokens 65536
+model options. GPT: `--provider chat --model openai/gpt-6.1-sol
+--chat-reasoning-effort medium --max-output-tokens 65536`. DeepSeek: set `DEEPSEEK_MODEL` to a model ID available in LiteLLM and use `--model
+"$DEEPSEEK_MODEL" --chat-reasoning-effort low --agent-transport tools --agent-max-output-tokens 65536
 --chat-schema-mode json_object`. Judge and score:
 
 ```bash
 python -m trace2env awb-judge --predictions pred.jsonl --output judged.jsonl \
-  --judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir JUDGE_CACHE
+  --judge-model openai/gpt-5.2 --cache-dir JUDGE_CACHE
 python -m trace2env awb-score --predictions judged.jsonl --summary score.json
 ```
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Official judge (gpt-5.2 via OpenRouter) on both prediction sets, 4 shards each, then official scoring.
+# Official judge (gpt-5.2 via the configured LiteLLM gateway) on both prediction sets, 4 shards each, then official scoring.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "$A/judge-cache")
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "$A/judge-cache")
 for name in ${@:-prompting agentic}; do
   echo "[$(date -Is)] judging $name"
   for i in 0 1 2 3; do

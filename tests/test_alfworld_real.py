@@ -36,7 +36,8 @@ class FakeWrapper:
 
 
 class FakeCompletions:
-    def create(self, *, model, messages):
+    def create(self, *, model, messages, temperature):
+        assert temperature == 1.0
         assert model == "gpt-5.6-sol"
         assert messages[-1]["content"].endswith("AVAILABLE ACTIONS: take cup")
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(

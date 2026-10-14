@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# prompting+rag baseline: the official prompting input (same model, temperature 0.6, max tokens 32768 as run_prompting.sh)
+# prompting+rag baseline: the official prompting input (same model, temperature 1.0, max tokens 32768 as run_prompting.sh)
 # plus a fixed top-5 of raw action->observation turns retrieved lexically (FTS5, BM25) from the 20 construction trace files
 # of v1_20_r=1, each observation shown up to 4000 characters, appended to the official system prompt. Query = the command
 # words of the current action's keystrokes. Same 4 shards; judged with the official judge; compared with every system.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"; LABEL="prompting+rag"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+
+OR=(--provider chat --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
 RAG=(--mode prompting_rag --trace-corpus "$EXP/traces/reconstruction" --rag-top-k 5 --rag-turn-chars 4000)
 echo "[$(date -Is)] $LABEL start: ${RAG[*]}"
 for i in 0 1 2 3; do

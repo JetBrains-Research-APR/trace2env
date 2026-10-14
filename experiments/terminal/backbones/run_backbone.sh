@@ -7,10 +7,10 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 LABEL="$1"; MODE="$2"; shift 2
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"; : "${BACKBONE_MODEL:?set BACKBONE_MODEL, e.g. deepseek/deepseek-v4-pro}"
+: "${BACKBONE_MODEL:?set BACKBONE_MODEL, e.g. deepseek/deepseek-v4-pro}"
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"; SLUG="${BACKBONE_SLUG:-$(echo "$BACKBONE_MODEL" | sed 's#.*/##; s/[^A-Za-z0-9.]/-/g')}"; B="$EXP/backbones/$SLUG"; mkdir -p "$B"
 read -r -a REASONING <<< "${REASONING_ARGS:---chat-reasoning-effort medium}"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
+OR=(--provider chat --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
 CACHE="${BACKBONE_CACHE_DIR:-$B/cache}"
 case "$MODE" in
   prompting)     ARGS=(--mode prompting --split all "${OR[@]}" --cache-dir "$CACHE") ;;

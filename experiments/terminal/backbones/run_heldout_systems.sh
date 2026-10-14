@@ -3,14 +3,14 @@
 # Same protocol as run_v51_systems.sh: one awb-run process per trajectory (at most MAX_PARALLEL at a time), the unchanged
 # gpt-5.2 judge (JUDGE_SHARDS parallel shards), official-input audit and knowledge-gate audit. Outputs under
 # backbones/<slug>/heldout/. Systems: harness_only_v51, trace2env_v531 (the v5.3.1 gate, no judge).
-#   BACKBONE_MODEL=openai/gpt-5.6-sol REASONING_ARGS="--chat-reasoning-effort medium" AGENT_MAX_OUTPUT_TOKENS=16384 \
+#   BACKBONE_MODEL=openai/gpt-6.1-sol REASONING_ARGS="--chat-reasoning-effort medium" AGENT_MAX_OUTPUT_TOKENS=16384 \
 #     BACKBONE_CACHE_DIR=work/exp-v1_20_r=1/awb/cache-v2 SYSTEMS="harness_only_v51 trace2env_v531" run_heldout_systems.sh
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-: "${OPENROUTER_API_KEY:?}"; : "${BACKBONE_MODEL:?}"
-# Backbone transport overrides (the judge always uses OpenRouter): BASE_URL, API_KEY_ENV, SCHEMA_ARGS, e.g. the official
-# DeepSeek API: BASE_URL=https://api.deepseek.com API_KEY_ENV=DEEPSEEK_API_KEY SCHEMA_ARGS="--chat-schema-mode json_object"
-BASE_URL="${BASE_URL:-https://openrouter.ai/api/v1}"; API_KEY_ENV="${API_KEY_ENV:-OPENROUTER_API_KEY}"; : "${!API_KEY_ENV:?}"
+: "${BACKBONE_MODEL:?}"
+# Backbone and judge calls share the LiteLLM gateway configured in .env.
+
+BASE_URL="$(python3 -c 'from trace2env.llm_config import litellm_base_url; print(litellm_base_url() or "")')"
 read -r -a SCHEMA <<< "${SCHEMA_ARGS:-}"
 # AGENT_ARGS, e.g. "--agent-transport tools": native function calling for the world-model agent (the official DeepSeek
 # API's JSON mode returns blank output on long briefs; tracking and single-shot stay on JSON mode)
@@ -35,7 +35,7 @@ read -r -a REASONING <<< "${REASONING_ARGS:---chat-reasoning-effort medium}"
 PROVIDER=(); if [ -n "${PROVIDER_JSON:-}" ]; then PROVIDER=(--chat-provider-json "$PROVIDER_JSON"); fi
 CACHE="${BACKBONE_CACHE_DIR:-$EXP/backbones/$SLUG/cache}"; CAP="${AGENT_MAX_OUTPUT_TOKENS:-16384}"; SYSTEMS="${SYSTEMS:-harness_only_v51 trace2env_v531}"
 MAX_PARALLEL="${MAX_PARALLEL:-16}"; JUDGE_SHARDS="${JUDGE_SHARDS:-8}"
-OR=(--provider chat --base-url "$BASE_URL" --api-key-env "$API_KEY_ENV" --model "$BACKBONE_MODEL" "${REASONING[@]}" "${PROVIDER[@]}" "${SCHEMA[@]}" --max-output-tokens 65536)
+OR=(--provider chat --model "$BACKBONE_MODEL" "${REASONING[@]}" "${PROVIDER[@]}" "${SCHEMA[@]}" --max-output-tokens 65536)
 COMMON=(--mode agentic --allow-unvalidated --split all "${OR[@]}" --features default,evidence --agent-max-output-tokens "$CAP" --official-input --cache-dir "$CACHE" "${AGENT[@]}")
 git rev-parse --short HEAD > "$B/code-commit.txt"
 # TRACE_CORPUS_MAP (optional, relative to EXP_ROOT): {trajectory id: raw-trace directory relative to EXP_ROOT}, replacing
@@ -90,7 +90,7 @@ for label in $SYSTEMS; do
     *) echo "unknown system $label"; exit 2 ;;
   esac
 done
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "${JUDGE_CACHE:-work/exp-v1_20_r=1/awb/judge-cache}")
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "${JUDGE_CACHE:-work/exp-v1_20_r=1/awb/judge-cache}")
 for label in $SYSTEMS; do
   if [ -f "$B/judged-$label.jsonl" ] && [ "$(wc -l < "$B/judged-$label.jsonl")" -ge "$N_ROWS" ]; then echo "$label already judged"; continue; fi
   rm -f "$B/judge-shard-$label-"*.jsonl

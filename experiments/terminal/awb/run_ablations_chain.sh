@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 A="work/exp-v1_20_r=1/awb"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
+
 echo "[$(date -Is)] chain start"
 "$A/run_ablation.sh" schema_only "packages/v1_20_r=1-schema_only" > "$A/schema_only.log" 2>&1 &
 "$A/run_ablation.sh" single_shot "packages/v1_20_r=1" --prediction-mode single_shot > "$A/single_shot.log" 2>&1 &

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Official judge (gpt-5.2 via OpenRouter, shared content-addressed judge cache) on a backbone's prediction shards.
+# Official judge (gpt-5.2 via the configured LiteLLM gateway, shared content-addressed judge cache) on a backbone's prediction shards.
 #   run_backbone_judge.sh SLUG LABEL...
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 SLUG="$1"; shift
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"; B="$EXP/backbones/$SLUG"
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "$A/judge-cache")
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "$A/judge-cache")
 for name in "$@"; do
   echo "[$(date -Is)] judging $SLUG/$name"
   for f in "$B"/pred-$name-shard*.jsonl; do

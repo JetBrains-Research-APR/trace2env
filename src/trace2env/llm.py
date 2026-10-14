@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import threading
 import time
@@ -15,6 +14,7 @@ from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from trace2env.llm_config import create_llm_client
 from trace2env.models import SUBMIT_TOOL_NAME, AgentReply, AgentTurn, ToolCall, TransitionSubmission
 from trace2env.storage import read_json, write_json
 
@@ -57,16 +57,10 @@ CLIENT_TIMEOUT_S = 1800.0
 CLIENT_MAX_RETRIES = 0
 
 
-def _openai_client(client: Any, base_url: str | None, api_key: str | None) -> Any:
+def _openai_client(client: Any) -> Any:
     if client is not None:
         return client
-    try:
-        from openai import OpenAI
-    except ImportError as exc:
-        raise RuntimeError("Install the project dependencies to use OpenAI: pip install -e .") from exc
-    # Local OpenAI-compatible servers (vLLM, SGLang) accept any key; the official eval uses "EMPTY".
-    key = api_key or os.environ.get("OPENAI_API_KEY") or ("EMPTY" if base_url else None)
-    return OpenAI(base_url=base_url, api_key=key, timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_MAX_RETRIES)
+    return create_llm_client(timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_MAX_RETRIES)
 
 
 def extract_json_text(content: str) -> str:
@@ -232,17 +226,17 @@ class OpenAIResponsesLLM:
 
     def __init__(
         self,
-        model: str = "gpt-5.6-sol",
+        model: str = "openai/gpt-6.1-sol",
         reasoning_effort: str = "medium",
         client: Any = None,
         store: bool = False,
-        base_url: str | None = None,
-        api_key: str | None = None,
         repair_attempts: int = 2,
+        temperature: float | None = 1.0,
     ):
-        self.client = _openai_client(client, base_url, api_key)
+        self.client = _openai_client(client)
         self.model = model
         self.reasoning_effort = reasoning_effort
+        self.temperature = temperature
         self.store = store
         self.repair_attempts = repair_attempts
         self._local = threading.local()  # per-thread bookkeeping: concurrent callers must not see each other's usage
@@ -271,6 +265,8 @@ class OpenAIResponsesLLM:
             "metadata": {"trace2env_role": role},
             "store": self.store,
         }
+        if self.temperature is not None:
+            common["temperature"] = self.temperature
         schema = response_model.model_json_schema()
         self.last_usage = None
         if _requires_flexible_schema(schema):
@@ -323,7 +319,8 @@ def looks_degenerate(text: str) -> bool:
 
 
 def _sampling(temperature: float | None, max_tokens: int | None, reasoning_effort: str | None,
-              reasoning: dict[str, Any] | None = None, provider_routing: dict[str, Any] | None = None) -> dict[str, Any]:
+              reasoning: dict[str, Any] | None = None, provider_routing: dict[str, Any] | None = None,
+              *, model: str = "") -> dict[str, Any]:
     """Only send sampling parameters that were set: reasoning models reject fixed temperatures.
 
     ``reasoning`` is the OpenRouter-style ``reasoning`` object (``{"enabled": false}``, ``{"effort": "low"}``,
@@ -331,7 +328,11 @@ def _sampling(temperature: float | None, max_tokens: int | None, reasoning_effor
     ``reasoning_effort`` parameter; when it is given, ``reasoning_effort`` is not sent.
     """
     params: dict[str, Any] = {}
-    if temperature is not None:
+    # LiteLLM rejects the benchmark's 0.6 temperature for GPT-5.6 reasoning models.
+    # Let those models use their supported default unless reasoning is explicitly disabled.
+    gpt56 = model.removeprefix("openai/").startswith("gpt-5.6")
+    effort = reasoning.get("effort") if reasoning else reasoning_effort
+    if temperature is not None and (not gpt56 or temperature == 1 or effort == "none"):
         params["temperature"] = temperature
     if max_tokens:
         params["max_tokens"] = max_tokens
@@ -354,11 +355,9 @@ class OpenAIChatStructuredLLM:
     def __init__(
         self,
         model: str,
-        temperature: float | None = None,
+        temperature: float | None = 1.0,
         max_tokens: int | None = 32768,
         client: Any = None,
-        base_url: str | None = None,
-        api_key: str | None = None,
         reasoning_effort: str | None = None,
         reasoning: dict[str, Any] | None = None,
         provider_routing: dict[str, Any] | None = None,
@@ -370,7 +369,7 @@ class OpenAIChatStructuredLLM:
     ):
         if schema_mode not in SCHEMA_MODES:
             raise ValueError(f"schema_mode must be one of {sorted(SCHEMA_MODES)}")
-        self.client = _openai_client(client, base_url, api_key)
+        self.client = _openai_client(client)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -433,7 +432,7 @@ class OpenAIChatStructuredLLM:
                 model=self.model,
                 messages=messages,
                 response_format=response_format,
-                **_sampling(self.temperature, max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing),
+                **_sampling(self.temperature, max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing, model=self.model),
             ), role=role, backoff_s=self.retry_backoff_s)
             self.last_usage = _add_usage(self.last_usage, usage_dict(getattr(response, "usage", None), provider=_response_provider(response)))
             choice = response.choices[0]
@@ -483,21 +482,19 @@ class OpenAIChatStructuredLLM:
 
 
 class OpenAIChatLLM:
-    """Free-text Chat Completions adapter; the defaults mirror the official AgentWorldBench script."""
+    """Free-text Chat Completions adapter; judges pass their own sampling temperature."""
 
     def __init__(
         self,
         model: str,
-        temperature: float | None = 0.6,
+        temperature: float | None = 1.0,
         max_tokens: int | None = 32768,
         client: Any = None,
-        base_url: str | None = None,
-        api_key: str | None = None,
         reasoning_effort: str | None = None,
         reasoning: dict[str, Any] | None = None,
         provider_routing: dict[str, Any] | None = None,
     ):
-        self.client = _openai_client(client, base_url, api_key)
+        self.client = _openai_client(client)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -520,7 +517,7 @@ class OpenAIChatLLM:
         response = call_with_retry(lambda: self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            **_sampling(self.temperature, self.max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing),
+            **_sampling(self.temperature, self.max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing, model=self.model),
         ), role=role)
         self.last_usage = usage_dict(getattr(response, "usage", None), provider=_response_provider(response))
         return response.choices[0].message.content or ""
@@ -532,16 +529,14 @@ class OpenAIToolLLM:
     def __init__(
         self,
         model: str,
-        temperature: float | None = None,
+        temperature: float | None = 1.0,
         max_tokens: int | None = 8192,
         client: Any = None,
-        base_url: str | None = None,
-        api_key: str | None = None,
         reasoning_effort: str | None = None,
         reasoning: dict[str, Any] | None = None,
         provider_routing: dict[str, Any] | None = None,
     ):
-        self.client = _openai_client(client, base_url, api_key)
+        self.client = _openai_client(client)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -562,7 +557,7 @@ class OpenAIToolLLM:
         # moonshotai/kimi-k2.6 via OpenRouter) then still cannot answer with a different call.
         offered = ([tool for tool in tools if tool.get("function", {}).get("name") == force_tool] or tools) if force_tool else tools
         params = dict(model=self.model, messages=messages, tools=offered,
-                      **_sampling(self.temperature, self.max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing))
+                      **_sampling(self.temperature, self.max_tokens, self.reasoning_effort, self.reasoning, self.provider_routing, model=self.model))
         from openai import BadRequestError  # local import: the openai package stays optional for scripted runs
 
         forced_unsupported = False
@@ -677,6 +672,10 @@ def _provider_identity(inner: Any) -> dict[str, Any]:
         "temperature": getattr(inner, "temperature", None),
         "max_tokens": getattr(inner, "max_tokens", None),
     }
+    base_url = getattr(getattr(inner, "client", None), "base_url", None)
+    if base_url:
+        # Completions from a previous gateway must not be reused after rerouting.
+        identity["base_url"] = str(base_url)
     reasoning = getattr(inner, "reasoning", None)
     if reasoning:  # only when set, so cache keys written before this field existed stay valid
         identity["reasoning"] = reasoning

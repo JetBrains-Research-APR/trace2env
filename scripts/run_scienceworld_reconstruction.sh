@@ -6,9 +6,9 @@ cd "$(dirname "$0")/.."
 SOURCE=work/exp-scienceworld/measurement-30-gold-v1
 BUILD="$SOURCE/build"
 PY="$PWD/work/exp-scienceworld/.venv/bin/python"
-MODEL="${MODEL:-openai/gpt-5.6-sol}"
-API_KEY_ENV="${API_KEY_ENV:-OPENROUTER_API_KEY}"
-BASE_URL="${BASE_URL:-https://openrouter.ai/api/v1}"
+MODEL="${MODEL:-openai/gpt-6.1-sol}"
+
+
 STAGES="${STAGES:-extract schema rules renderers notes compile}"
 LABEL="${PACKAGE_LABEL:-sciworld-measurement-30-v1}"
 
@@ -20,7 +20,7 @@ if not m["complete"] or len(rows) != 30 or len({r["item_id"] for r in rows}) != 
 if any(r["score"] != 100 or not (p / r["trace"]).is_file() for r in rows):
     raise SystemExit("A win lacks score 100 or its episode file")' "$SOURCE"
 
-OPTIONS=(--provider chat --base-url "$BASE_URL" --api-key-env "$API_KEY_ENV"
+OPTIONS=(--provider chat
          --model "$MODEL" --chat-reasoning-effort medium
          --max-output-tokens 65536 --max-prompt-bytes 600000 --induction-batch-size 100)
 for stage in $STAGES; do

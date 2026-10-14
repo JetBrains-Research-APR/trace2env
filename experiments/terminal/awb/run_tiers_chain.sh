@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 A="work/exp-v1_20_r=1/awb"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
+
 V3=(--features default,evidence --agent-max-output-tokens 16384)
 echo "[$(date -Is)] tiers chain start"
 "$A/run_ablation.sh" examples_only "packages/v1_20_r=1-examples_only" "${V3[@]}" > "$A/examples_only.log" 2>&1 &

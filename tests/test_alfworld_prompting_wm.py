@@ -17,7 +17,8 @@ class ScriptedCompletions:
     def __init__(self):
         self.calls = []
 
-    def create(self, *, model, messages):
+    def create(self, *, model, messages, temperature):
+        assert temperature == 1.0
         self.calls.append((model, [dict(row) for row in messages]))
         outputs = [
             "Thought: inspect first.\nAction: look",

@@ -35,10 +35,10 @@ a separate docker daemon with its data root in `WA_DOCKER_ROOT`).
 
 ```bash
 scripts/webarena/host_sites.sh pull && scripts/webarena/host_sites.sh up    # four sites + :80 proxy under the benchmark hostnames
-export OPENROUTER_API_KEY=...
+# Configure LITELLM_API_BASE and LITELLM_API_KEY in .env.
 python scripts/collect_webarena.py --task-list work/webarena/test.raw.json --selection work/webarena/collection_tasks.json \
   --output work/webarena/traces --node "$(command -v node)" --mcp-cli scripts/webarena/node_modules/@playwright/mcp/cli.js \
-  --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.6-sol --api-key-env OPENROUTER_API_KEY
+  --model openai/gpt-6.1-sol
 python -m trace2env ingest work/webarena/traces/episodes/*.json --output work/webarena/ingest-preview     # parser check, no API
 ```
 

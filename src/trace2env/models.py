@@ -466,7 +466,7 @@ class ReconstructionConfig(StrictModel):
     name: str
     description: str = ""
     domains: list[str] = Field(default_factory=list)
-    model: str = "gpt-5.6-sol"
+    model: str = "openai/gpt-6.1-sol"
     reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = "medium"
     max_history_events: int = Field(default=20, ge=0)
     # Character limits for the event text shown to the evidence extractor (0 = unlimited). Clipped text

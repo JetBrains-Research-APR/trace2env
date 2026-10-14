@@ -46,7 +46,8 @@ PYTHON=work/exp-alfworld-real/.venv-build/bin/python \
   bash scripts/run_alfworld_reconstruction.sh
 ```
 
-The collection command uses `OPENROUTER_API_KEY` from the process environment.
+The collection command uses `LITELLM_API_BASE` and `LITELLM_API_KEY` from `.env`
+(or the environment) to route requests through the internal LiteLLM gateway.
 It never writes the key to an artifact. The reconstruction script requires the
 40-win export and writes a candidate package under
 `trace2env-40-success-v1/build/packages/alfworld-40-success-v1/`. See the

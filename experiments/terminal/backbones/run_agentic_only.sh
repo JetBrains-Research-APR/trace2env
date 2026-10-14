@@ -6,11 +6,11 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 LABEL="$1"; PKG_REL="$2"; shift 2
-: "${OPENROUTER_API_KEY:?}"; : "${BACKBONE_MODEL:?}"
+: "${BACKBONE_MODEL:?}"
 export REASONING_ARGS="${REASONING_ARGS:---chat-reasoning-effort low}"
 EXP="work/exp-v1_20_r=1"; SLUG="${BACKBONE_SLUG:-$(echo "$BACKBONE_MODEL" | sed 's#.*/##; s/[^A-Za-z0-9.]/-/g')}"; B="$EXP/backbones/$SLUG"; PKG="$EXP/$PKG_REL"
 read -r -a REASONING <<< "$REASONING_ARGS"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
+OR=(--provider chat --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
 V3=(--features default,evidence --agent-max-output-tokens "${AGENT_MAX_OUTPUT_TOKENS:-16384}")
 sha256sum "$PKG/manifest.json" | cut -c1-16 > "$B/package-manifest-$LABEL.sha256"
 echo "[$(date -Is)] $SLUG/$LABEL agentic pkg=$PKG_REL reasoning='${REASONING[*]}' agent_cap=${AGENT_MAX_OUTPUT_TOKENS:-16384} extra: $* start"

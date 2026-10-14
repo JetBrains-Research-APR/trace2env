@@ -7,21 +7,19 @@
 #   STAGES="rules renderers notes compile" work/exp-envscaler/run_reconstruction.sh env_151_rl   # re-run from a stage
 #   DRY_RUN=1 work/exp-envscaler/run_reconstruction.sh env_151_rl                                # print the commands only
 #
-# Model settings default to those of every reported build (docs/EXPERIMENTS.md); override with MODEL, BASE_URL,
-# API_KEY_ENV, PROVIDER. The key is read from the environment variable named by API_KEY_ENV.
+# Override model settings with MODEL and PROVIDER. All calls use the LiteLLM URL and key from .env.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ENV_ID="${1:?usage: run_reconstruction.sh ENV_ID   (e.g. env_151_rl)}"
 PY="${PYTHON:-python}"
 EXP="work/exp-envscaler"; W="$EXP/$ENV_ID"; LABEL="${LABEL:-envscaler-$ENV_ID-v1}"
-MODEL="${MODEL:-openai/gpt-5.6-sol}"; BASE_URL="${BASE_URL:-https://openrouter.ai/api/v1}"
-API_KEY_ENV="${API_KEY_ENV:-OPENROUTER_API_KEY}"; PROVIDER="${PROVIDER:-chat}"
+MODEL="${MODEL:-openai/gpt-6.1-sol}"
+PROVIDER="${PROVIDER:-chat}"
 run() { if [ -n "${DRY_RUN:-}" ]; then printf '%q ' "$@"; echo; else "$@"; fi; }
-if [ -z "${DRY_RUN:-}" ]; then : "${!API_KEY_ENV:?set $API_KEY_ENV first}"; fi
 [ -d "$W/traces/reconstruction" ] || { echo "no construction episodes in $W/traces/reconstruction; run $EXP/run_export.sh" >&2; exit 1; }
 [ -f "$EXP/descriptions/$ENV_ID.md" ] || { echo "no description at $EXP/descriptions/$ENV_ID.md; run $EXP/run_export.sh" >&2; exit 1; }
 OR=(--description "@$EXP/descriptions/$ENV_ID.md" --max-prompt-bytes 600000 --max-output-tokens 65536 --model "$MODEL"
-    --provider "$PROVIDER" --base-url "$BASE_URL" --api-key-env "$API_KEY_ENV" --chat-reasoning-effort medium --induction-batch-size 100)
+    --provider "$PROVIDER" --chat-reasoning-effort medium --induction-batch-size 100)
 STAGES="${STAGES:-ingest extract schema rules renderers notes compile}"
 for stage in $STAGES; do
   echo "[$(date +%FT%T)] $ENV_ID $stage"
