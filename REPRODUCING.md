@@ -24,13 +24,14 @@ The three Trace2Env labels differ only in the Applicability Gate's identity sign
 
 | Item | Where it comes from |
 |---|---|
-| AgentWorldBench test files (`terminal`, `swe`, `android`, `web`) | the [Hugging Face dataset](https://huggingface.co/datasets/Qwen/AgentWorldBench), placed in `work/agentworldbench/<split>_test.jsonl` (never modified) |
+| AgentWorldBench test files (`terminal`, `swe`, `android`, `web`, `os`, `search`, `mcp`) | the [Hugging Face dataset](https://huggingface.co/datasets/Qwen/AgentWorldBench), placed in `work/agentworldbench/<split>_test.jsonl` (never modified) |
 | Terminal-Bench 2.0 traces (20 construction + 16 scaling trajectories, own collection) | on request (see below); or re-collect with Harbor and Terminus-2 ([docs/TRACE_COLLECTION.md](docs/TRACE_COLLECTION.md)) |
 | WebArena traces (50 own trajectories) | on request; or self-host WebArena and re-collect through Playwright MCP (`scripts/webarena/`, `scripts/collect_webarena.py`) |
-| Android and SWE construction data | the benchmark's own trajectories under a task-grouped k=5 cross-fit (`experiments/android/make_folds.py`, `experiments/swe/make_folds.py`); nothing to download beyond the test files |
+| Android, SWE, OS and Search construction data | the benchmark's own trajectories under a task-grouped k=5 cross-fit (`experiments/android/make_folds.py`, `experiments/swe/make_folds.py`, `experiments/os/make_folds.py`, `experiments/search/make_folds.py`); nothing to download beyond the test files |
+| MCP construction traces | the public MCPMark trajectory log and Toolathlon-Verified trajectories, sampled with benchmark-overlapping tasks excluded (`scripts/mcp_sample.py`, `trace2env mcp-export`; [docs/TRACE_COLLECTION.md](docs/TRACE_COLLECTION.md)) |
 | EnvScaler rollouts and environment definitions | on request (unpack into `work/envscaler/`), converted with `trace2env envscaler-export` (`experiments/envscaler/run_export.sh`) |
 | ALFWorld and SciWorld | the `baseline/Word2World` submodule (task lists, ALFWorld grammar, AgentGym adapters) plus the simulators themselves ([docs/ALFWORLD_REAL.md](docs/ALFWORLD_REAL.md), [docs/ALFWORLD_TRACE2ENV.md](docs/ALFWORLD_TRACE2ENV.md)) |
-| Frozen worldbooks, predictions, judge outputs, call logs of the reported runs | the Terminal worldbook is published with the [live demo](https://huggingface.co/spaces/Quanyu001/trace2env_demo/tree/main/worldbook); the others are available on request and unpack into `work/` with the layout the scripts expect |
+| Frozen worldbooks, predictions, judge outputs, call logs of the reported runs | the Terminal worldbook is published on [Hugging Face](https://huggingface.co/datasets/Quanyu001/trace2env-worldbook-terminal) (it also runs the live demo); the others are available on request and unpack into `work/` with the layout the scripts expect |
 | Model access | an OpenAI-compatible endpoint: the reported runs used `openai/gpt-5.6-sol` through OpenRouter (`OPENROUTER_API_KEY`) and `deepseek-v4.1-flash` through DeepSeek's API (`DEEPSEEK_API_KEY`); the judge is `openai/gpt-5.2` through OpenRouter |
 
 Every worldbook's `manifest.json` lists the SHA-256 of each of its files, and the launchers record the manifest hash of
@@ -94,6 +95,12 @@ the unseen-task strata of Appendix B from `experiments/terminal/awb/construction
 `construction_overlap` analysis in `full200_report.py`, and the overlap strata of the cross-fits from `experiments/android/row_strata.py` and `experiments/swe/make_folds.py` (`row_strata.json`). The two
 integrity audits are `experiments/terminal/backbones/official_input_audit.py` and `knowledge_gate_audit.py`
 (`experiments/android/gate_audit_v533.py`, `experiments/swe/gate_audit_crossfit.py` for the cross-fits).
+
+The three environments outside the paper (MCP, OS, Search; [docs/AGENTWORLDBENCH.md](docs/AGENTWORLDBENCH.md), "Results on the
+full suite") use the same launcher: `experiments/os/run_eval.sh gpt` and `experiments/search/run_eval.sh gpt` run Trace2Env
+(`trace2env_v531`) with each trajectory's out-of-fold package (`PKG_MAP`), after `make_folds.py` and `build_all.sh` in the
+same directory; `PROVIDER_JSON='{"order": ["openai/flex"], "allow_fallbacks": false}'` pins the backbone's calls to
+OpenAI's flex tier through OpenRouter (half the standard price). MCP uses the terminal launcher over the MCP package.
 
 ## Ablations and trace scaling (Section 4 and Appendix B)
 

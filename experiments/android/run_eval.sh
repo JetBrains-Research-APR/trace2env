@@ -16,11 +16,11 @@ export EXP_ROOT="$EXP" PKG_MAP=package_map.json PKG_MAP_SCHEMA=package_map_schem
 case "$BACKBONE" in
   gpt)
     BACKBONE_MODEL=openai/gpt-5.6-sol BACKBONE_SLUG=gpt-5.6-sol REASONING_ARGS="--chat-reasoning-effort medium" AGENT_MAX_OUTPUT_TOKENS=16384 MAX_PARALLEL=16 \
-      bash work/exp-v1_20_r=1/backbones/run_heldout_systems.sh ;;
+      bash experiments/terminal/backbones/run_heldout_systems.sh ;;
   deepseek)
     : "${DEEPSEEK_API_KEY:?}"
     BACKBONE_MODEL=deepseek-flash BACKBONE_SLUG=deepseek-flash-official BASE_URL=https://api.deepseek.com API_KEY_ENV=DEEPSEEK_API_KEY \
       REASONING_ARGS="--chat-reasoning-effort low" AGENT_MAX_OUTPUT_TOKENS=65536 SCHEMA_ARGS="--chat-schema-mode json_object" AGENT_ARGS="--agent-transport tools" MAX_PARALLEL=8 \
-      bash work/exp-v1_20_r=1/backbones/run_heldout_systems.sh ;;
+      bash experiments/terminal/backbones/run_heldout_systems.sh ;;
   *) echo "unknown backbone $BACKBONE"; exit 2 ;;
 esac

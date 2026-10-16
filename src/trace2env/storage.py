@@ -62,7 +62,9 @@ def write_jsonl(path: Path, values: Iterable[Any]) -> None:
 def read_jsonl(path: Path) -> list[Any]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    # Split on "\n" only: str.splitlines() also breaks lines at U+2028, U+2029, U+0085 and the ASCII separator
+    # controls, which observations may contain and which json.dumps(ensure_ascii=False) leaves unescaped.
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 def append_jsonl(path: Path, value: Any) -> None:

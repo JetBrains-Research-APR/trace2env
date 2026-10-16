@@ -131,7 +131,9 @@ def usage_summary(calls_path: Path) -> dict:
     totals: dict[str, float] = {"calls": 0, "cache_hits": 0, "errors": 0, "elapsed_s": 0.0}
     if not calls_path.exists():
         return totals
-    for line in calls_path.read_text(encoding="utf-8").splitlines():
+    for line in calls_path.read_text(encoding="utf-8").split("\n"):
+        if not line.strip():
+            continue
         record = json.loads(line)
         totals["calls"] += 1
         totals["cache_hits"] += 1 if record.get("cache_hit") else 0

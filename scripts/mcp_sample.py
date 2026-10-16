@@ -93,7 +93,7 @@ def toolathlon_run(run_dir: Path) -> dict[str, dict]:
 # ─── Benchmark trajectories ───────────────────────────────────────────────────
 
 def benchmark_trajectories(path: Path) -> dict[str, dict]:
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
     grouped: dict[str, list[dict]] = collections.defaultdict(list)
     for row in rows:
         grouped[str(row["id"])].append(row)

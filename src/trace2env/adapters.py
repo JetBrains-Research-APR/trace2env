@@ -196,7 +196,7 @@ def _load_raw_traces(trace_path: Path, text: str, source_id: str) -> list[Episod
         return [_episode_from_object(obj, source_id, index) for index, obj in enumerate(objects)]
 
     if suffix == ".jsonl":
-        objects = [json.loads(line) for line in text.splitlines() if line.strip()]
+        objects = [json.loads(line) for line in text.split("\n") if line.strip()]  # not splitlines(): U+2028 etc. may occur inside values
         # Event-per-line logs commonly share an episode key; group them.
         if objects and all(isinstance(item, dict) for item in objects) and all(
             not any(key in item for key in ("events", "messages", "trajectory", "trace")) for item in objects

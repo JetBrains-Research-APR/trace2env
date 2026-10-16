@@ -63,7 +63,7 @@ run_system() {  # LABEL PKG_REL [extra]
   for f in "$SHARDS"/traj_*.jsonl; do
     t="${f##*/traj_}"; t="${t%.jsonl}"
     if [ -f "$B/pred-$label-$t.jsonl" ] && [ "$(wc -l < "$B/pred-$label-$t.jsonl")" -ge "$(wc -l < "$f")" ]; then continue; fi
-    if [ -n "$map" ]; then pkg="$EXP/$(shard_pkg "$map" "$t")"; fi
+    if [ -n "$map" ]; then pkg="$EXP/$(shard_pkg "$map" "$t")"; printf '%s %s\n' "$t" "${pkg#$EXP/}" >> "$B/package-shard-$label.txt"; fi  # cross-fit: which package each shard ran with
     local -a extra=("$@")
     if [ -n "${TRACE_CORPUS_MAP:-}" ]; then  # cross-fit: the raw-trace corpus is per trajectory too (its out-of-fold corpus)
       local corpus="$EXP/$(shard_pkg "$EXP/$TRACE_CORPUS_MAP" "$t")"
