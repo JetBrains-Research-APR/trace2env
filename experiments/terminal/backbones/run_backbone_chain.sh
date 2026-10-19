@@ -6,11 +6,11 @@
 #   BACKBONE_MODEL=deepseek/deepseek-v4.1-flash REASONING_ARGS="--chat-reasoning-effort low" run_backbone_chain.sh
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-: "${OPENROUTER_API_KEY:?}"; : "${BACKBONE_MODEL:?}"
+: "${BACKBONE_MODEL:?}"
 export REASONING_ARGS="${REASONING_ARGS:---chat-reasoning-effort low}"
 EXP="work/exp-v1_20_r=1"; A="$EXP/awb"; SLUG="${BACKBONE_SLUG:-$(echo "$BACKBONE_MODEL" | sed 's#.*/##; s/[^A-Za-z0-9.]/-/g')}"; B="$EXP/backbones/$SLUG"; mkdir -p "$B"
 read -r -a REASONING <<< "$REASONING_ARGS"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
+OR=(--provider chat --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
 V3=(--features default,evidence --agent-max-output-tokens "${AGENT_MAX_OUTPUT_TOKENS:-16384}")
 run_agentic() {  # LABEL PKG_REL [extra]
   local label="$1" pkg="$EXP/$2"; shift 2

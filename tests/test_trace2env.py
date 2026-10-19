@@ -316,6 +316,7 @@ class OpenAIAdapterTests(unittest.TestCase):
         self.assertEqual(result.value, 0.8)
         self.assertIs(client.responses.kwargs["text_format"], Confidence)
         self.assertEqual(client.responses.kwargs["instructions"], "system")
+        self.assertEqual(client.responses.kwargs["temperature"], 1.0)
 
     def test_chat_transports_send_only_configured_sampling_parameters(self):
         from trace2env.llm import OpenAIChatLLM, OpenAIChatStructuredLLM, OpenAIToolLLM
@@ -338,13 +339,16 @@ class OpenAIAdapterTests(unittest.TestCase):
 
         client = FakeClient()
         OpenAIChatStructuredLLM("m", client=client).complete(system="s", user="u", response_model=Confidence, role="r")
-        self.assertNotIn("temperature", client.chat.completions.kwargs)
+        self.assertEqual(client.chat.completions.kwargs["temperature"], 1.0)
         self.assertEqual(client.chat.completions.kwargs["max_tokens"], 32768)
         client = FakeClient()
         OpenAIChatLLM("m", client=client, temperature=0.6, reasoning_effort="low").chat(messages=[], role="r")
         self.assertEqual((client.chat.completions.kwargs["temperature"], client.chat.completions.kwargs["reasoning_effort"]), (0.6, "low"))
         client = FakeClient()
         OpenAIToolLLM("m", client=client, max_tokens=None).respond(messages=[], tools=[], role="r")
+        self.assertEqual(client.chat.completions.kwargs["temperature"], 1.0)
+        self.assertNotIn("max_tokens", client.chat.completions.kwargs)
+        OpenAIToolLLM("m", client=client, temperature=None, max_tokens=None).respond(messages=[], tools=[], role="r")
         self.assertEqual(set(client.chat.completions.kwargs) & {"temperature", "max_tokens"}, set())
         # OpenRouter provider routing rides in extra_body next to the reasoning object and is part of the cache identity
         from trace2env.llm import _provider_identity

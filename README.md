@@ -137,11 +137,11 @@ WebArena, AgentWorldBench, EnvScaler, ALFWorld and SciWorld traces are in
 ```
 
 Write a short `description.md` saying what the environment is and what its actions and observations look like, point
-the model options at the chat model you want to use, hosted or self-hosted (`--base-url` is its endpoint,
-`--api-key-env` the variable holding its key, `--model` its name), then build:
+the model options at an available gateway model, then build. Configure `LITELLM_API_BASE` and `LITELLM_API_KEY`
+in the repository-root `.env` first (see `.env.example`); the default model is `openai/gpt-6.1-sol`.
 
 ```bash
-MODEL=(--provider chat --base-url https://YOUR-ENDPOINT/v1 --api-key-env YOUR_KEY_VAR --model YOUR_MODEL)
+MODEL=(--provider chat --model openai/gpt-6.1-sol)
 python -m trace2env ingest TRACES --output work/parsed                  # deterministic parse and segmentation, no model
 python -m trace2env reconstruct TRACES --environment-id my.env --name "My environment" \
   --description @description.md --domain terminal "${MODEL[@]}" \
@@ -189,10 +189,23 @@ python -m trace2env awb-run work/agentworldbench/terminal_test.jsonl --mode agen
   --official-input --knowledge-gate --features default,evidence --allow-unvalidated --output work/awb/pred.jsonl \
   "${MODEL[@]}" --cache-dir work/awb/cache
 python -m trace2env awb-judge --predictions work/awb/pred.jsonl --output work/awb/judged.jsonl \
-  --judge-model YOUR_JUDGE_MODEL --judge-base-url https://YOUR-ENDPOINT/v1 --judge-api-key-env YOUR_KEY_VAR \
+  --judge-model openai/gpt-5.2-2025-12-11 \
   --cache-dir work/awb/judge-cache                                       # the benchmark's official judge is gpt-5.2
 python -m trace2env awb-score --predictions work/awb/judged.jsonl --summary work/awb/score.json
 ```
+
+All Trace2Env model requests use the internal LiteLLM gateway, configured by `LITELLM_API_BASE` and
+`LITELLM_API_KEY` in the repository-root `.env`. Environment variables with these names override the file.
+Use the gateway's model IDs (default `openai/gpt-6.1-sol`). This applies to reconstruction, runtime
+agents, task agents, collection scripts, and judges. Missing settings fail before sending a request.
+`--base-url`, `--api-key-env`, and their judge equivalents have been removed. The Python environment
+running the standalone scripts must have this project installed (`pip install -e .`). For external
+benchmark runners, `python -m trace2env.llm_config run COMMAND ...` supplies the same configuration.
+DeepSeek experiment launchers require `DEEPSEEK_MODEL` to name an available gateway model.
+Non-judge temperatures default to `1.0`; judge defaults remain at `0.6`.
+See [LiteLLM configuration and usage](docs/LITELLM.md) for model and sampling overrides.
+The frozen third-party `baseline/Word2World` submodule is unchanged; these settings apply to
+Trace2Env's entry points and the external harnesses launched by its scripts.
 
 ## 📊 Results and reproduction
 

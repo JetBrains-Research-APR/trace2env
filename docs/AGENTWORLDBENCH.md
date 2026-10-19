@@ -20,12 +20,13 @@ identifiers for distinct trajectories; the cross-fit tooling under `experiments/
 # Benchmark trajectories as construction episodes (smoke tests and cross-fits; a SplitManifest is written)
 python -m trace2env awb-export work/agentworldbench/terminal_test.jsonl --output work/awb/train
 
+# Set LITELLM_API_BASE and LITELLM_API_KEY in .env.
 # Predict every record with one of the four systems (see the table), then judge and score
 python -m trace2env awb-run work/agentworldbench/terminal_test.jsonl --mode agentic --package WORLDBOOK \
   --official-input --knowledge-gate --features default,evidence --allow-unvalidated --output work/awb/pred.jsonl \
-  --provider chat --base-url URL --api-key-env KEY_VAR --model MODEL --cache-dir work/awb/cache
+  --provider chat --model MODEL --cache-dir work/awb/cache
 python -m trace2env awb-judge --predictions work/awb/pred.jsonl --output work/awb/judged.jsonl \
-  --judge-model gpt-5.2 --judge-api-key-env KEY_VAR --cache-dir work/awb/judge-cache
+  --judge-model openai/gpt-5.2 --cache-dir work/awb/judge-cache
 python -m trace2env awb-score --predictions work/awb/judged.jsonl --summary work/awb/score.json
 ```
 

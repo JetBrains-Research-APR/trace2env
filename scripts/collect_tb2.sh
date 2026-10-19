@@ -2,7 +2,7 @@
 # Collect one Terminus-2 trajectory per Terminal-Bench 2.0 task with the official Harbor harness.
 #
 # Usage:
-#   export OPENROUTER_API_KEY=...
+#   Configure LITELLM_API_BASE and LITELLM_API_KEY in the project .env.
 #   scripts/collect_tb2.sh [JOB_NAME] [N_CONCURRENT] [EXTRA HARBOR ARGS...]
 #
 # Task images are pulled from Docker Hub (~300-500 MB each). Because Harbor keeps images after a
@@ -15,11 +15,12 @@ set -euo pipefail
 JOB_NAME="${1:-tb2-opus46}"
 N_CONCURRENT="${2:-4}"
 shift $(( $# >= 2 ? 2 : $# )) || true
-MODEL="${TB2_MODEL:-openrouter/anthropic/claude-opus-4.6}"
+MODEL="${TB2_MODEL:-anthropic/claude-opus-4-6}"
 JOBS_DIR="${TB2_JOBS_DIR:-work/tb2/jobs}"
 IMAGE_PREFIX="${TB2_IMAGE_PREFIX:-alexgshaw/}"
 
-: "${OPENROUTER_API_KEY:?export OPENROUTER_API_KEY first}"
+PY="${PYTHON:-python3}"
+API_BASE="$("$PY" -m trace2env.llm_config base-url)"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p "$JOBS_DIR"
 LOG="$JOBS_DIR/$JOB_NAME.log"
@@ -37,7 +38,8 @@ janitor() {
 }
 
 echo "[$(date -Is)] job=$JOB_NAME model=$MODEL concurrency=$N_CONCURRENT extra=$*" | tee -a "$LOG"
-harbor run -d terminal-bench@2.0 -a terminus-2 -m "$MODEL" -o "$JOBS_DIR" --job-name "$JOB_NAME" \
+"$PY" -m trace2env.llm_config run harbor run -d terminal-bench@2.0 -a terminus-2 -m "openai/$MODEL" \
+  --ak "api_base=$API_BASE" --ak "temperature=1.0" -o "$JOBS_DIR" --job-name "$JOB_NAME" \
   -n "$N_CONCURRENT" -y -q "$@" >>"$LOG" 2>&1 &
 HARBOR_PID=$!
 janitor "$HARBOR_PID" &

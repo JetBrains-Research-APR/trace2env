@@ -8,8 +8,8 @@
 #   work/exp-envscaler/run_judge_official.sh env_151_rl prompting [more labels]
 #   DRY_RUN=1 work/exp-envscaler/run_judge_official.sh env_151_rl prompting
 #
-# The original reads the key from OPENAI_API_KEY; it is set for the judge processes only, from the variable named
-# by JUDGE_API_KEY_ENV, and never appears on a command line. The original has no cache: a re-run is billed again.
+# The LiteLLM runner supplies the original's OPENAI_API_KEY from .env without putting the key on a command line.
+# The original has no cache: a re-run is billed again.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROWS_ENV="${1:?usage: run_judge_official.sh ROWS_ENV LABEL [LABEL ...]}"; shift
@@ -19,8 +19,8 @@ ROOT="$PWD"; A="${ROWS_DIR:-$ROOT/work/exp-envscaler/$ROWS_ENV/awb}"
 case "$A" in /*) ;; *) A="$ROOT/$A" ;; esac
 COMMIT="${AWB_COMMIT:-cd0aa83dc7a9c733695eb9c4652e0a68b6e6ecde}"   # QwenLM/Qwen-AgentWorld main on 2026-09-21
 UP="$ROOT/work/agentworldbench/Qwen-AgentWorld-$COMMIT"
-JUDGE_MODEL="${JUDGE_MODEL:-openai/gpt-5.2}"; JUDGE_BASE_URL="${JUDGE_BASE_URL:-https://openrouter.ai/api/v1}"
-JUDGE_API_KEY_ENV="${JUDGE_API_KEY_ENV:-OPENROUTER_API_KEY}"
+JUDGE_MODEL="${JUDGE_MODEL:-openai/gpt-5.2}"
+JUDGE_BASE_URL="$("$PY" -m trace2env.llm_config base-url)"
 if [ ! -f "$UP/eval/eval.py" ]; then
   echo "fetching QwenLM/Qwen-AgentWorld@$COMMIT (eval code and prompts) into $UP"
   files="eval/eval.py eval/lwm_eval_utils/__init__.py eval/lwm_eval_utils/task_configs.py eval/lwm_eval_utils/judge_parser.py eval/lwm_eval_utils/output_parser.py LICENSE"
@@ -30,15 +30,14 @@ if [ ! -f "$UP/eval/eval.py" ]; then
     curl -fsSL --retry 3 -o "$UP/$file" "https://raw.githubusercontent.com/QwenLM/Qwen-AgentWorld/$COMMIT/$file"
   done
 fi
-if [ -z "${DRY_RUN:-}" ]; then : "${!JUDGE_API_KEY_ENV:?set $JUDGE_API_KEY_ENV first}"; fi
 for name in "$@"; do
   STARTED="$(date +%FT%T)"
   echo "[$STARTED] original eval.py judge: $name on $ROWS_ENV ($JUDGE_MODEL)"
   for i in 0 1 2 3; do
-    ARGS=("$PY" eval.py judge --predictions "$A/pred-$name-shard$i.jsonl" --judge-base-url "$JUDGE_BASE_URL" --judge-model "$JUDGE_MODEL"
+    ARGS=("$PY" -m trace2env.llm_config run "$PY" eval.py judge --predictions "$A/pred-$name-shard$i.jsonl" --judge-base-url "$JUDGE_BASE_URL" --judge-model "$JUDGE_MODEL"
           --output-dir "$A/official-judged-$name-shard$i")
-    if [ -n "${DRY_RUN:-}" ]; then printf '(cd %q/eval && OPENAI_API_KEY=$%s ' "$UP" "$JUDGE_API_KEY_ENV"; printf '%q ' "${ARGS[@]}"; echo ")"; continue; fi
-    (cd "$UP/eval" && OPENAI_API_KEY="${!JUDGE_API_KEY_ENV}" "${ARGS[@]}" > "$A/official-judge-$name-shard$i.out" 2>&1) &
+    if [ -n "${DRY_RUN:-}" ]; then printf '(cd %q/eval && ' "$UP"; printf '%q ' "${ARGS[@]}"; echo ")"; continue; fi
+    (cd "$UP/eval" && "${ARGS[@]}" > "$A/official-judge-$name-shard$i.out" 2>&1) &
   done
   [ -z "${DRY_RUN:-}" ] || continue
   wait

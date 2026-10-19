@@ -23,9 +23,9 @@ Word2World's ` [SUCCESS]` marker rule and 50-turn cap. A success marker is a
 model claim; use real-environment replay for grounded task success.
 
 The run requires the prior real-agent artifacts and Word2World ALFWorld data
-under `work/exp-alfworld-real/`. Use a Python environment with `openai` and
-`tqdm`. Make `OPENROUTER_API_KEY` available as an environment variable without
-putting it in a command argument.
+under `work/exp-alfworld-real/`. Install this project in the Python environment (`pip install -e .`) along with
+`tqdm`. Configure `LITELLM_API_BASE` and `LITELLM_API_KEY` in the repository-root
+`.env`; both agents use that LiteLLM gateway.
 
 ```bash
 python3 scripts/run_alfworld_prompting_wm.py \

@@ -21,6 +21,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from trace2env.llm_config import create_llm_client, litellm_base_url
+
 from collect_scienceworld_measurement import (
     MEASUREMENT_TASKS, ROOT, WORK, configure_java, game_map, load_test_ids,
     normalize_action, write_json,
@@ -168,7 +170,7 @@ def safe_error(exc: Exception, key: str | None) -> str:
 
 
 def task_action(client: Any, model: str, history: list[dict[str, str]]) -> tuple[str, str]:
-    response = client.chat.completions.create(model=model, messages=history)
+    response = client.chat.completions.create(model=model, messages=history, temperature=1.0)
     react = response.choices[0].message.content
     if not isinstance(react, str) or not react.strip():
         raise RuntimeError("Task agent returned empty ReAct text")
@@ -225,7 +227,7 @@ def run_prompt_one(context: dict[str, Any], client: Any, model: str,
             react, action = task_action(client, model, agent)
             agent.append({"role": "assistant", "content": react})
             wm.append({"role": "user", "content": action})
-            raw = client.chat.completions.create(model=model, messages=wm).choices[0].message.content
+            raw = client.chat.completions.create(model=model, messages=wm, temperature=1.0).choices[0].message.content
             if not isinstance(raw, str) or not raw.strip():
                 raise RuntimeError("Prompted world model returned empty observation")
             observation, done = split_marker(raw)
@@ -425,9 +427,7 @@ def main() -> int:
     parser.add_argument("--item-ids", type=int, nargs="+",
                         help="Run exactly these frozen Measurement item IDs, in the given order")
     parser.add_argument("--max-steps", type=int, default=50)
-    parser.add_argument("--model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
-    parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--model", default="openai/gpt-6.1-sol")
     parser.add_argument("--resume-errors", action="store_true",
                         help="Resume only API connection failures from intact Trace2Env SQLite sessions")
     args = parser.parse_args()
@@ -470,7 +470,7 @@ def main() -> int:
         config = {"mode": args.mode, "task_ids": [r["item_id"] for r in rows],
                   "test_sha256": sha256(WORK / "sciworld_test.json"),
                   "adapter_sha256": sha256(ADAPTER), "max_steps": args.max_steps,
-                  "model": args.model, "base_url": args.base_url,
+                  "model": args.model, "base_url": litellm_base_url(),
                   "package_manifest_sha256": sha256(args.package / "manifest.json") if args.package else None,
                   "source": str(args.source) if args.source else None,
                   "max_tool_calls": 24 if args.mode == "trace2env" else None,
@@ -481,13 +481,11 @@ def main() -> int:
         if selection_path.is_file() and json.loads(selection_path.read_text(encoding="utf-8")) != config:
             parser.error("Existing output selection differs; choose a fresh directory")
         write_json(selection_path, config)
-        key = os.environ.get(args.api_key_env) or ""
+        key = ""
         client = None
         if args.mode in {"real", "prompt", "trace2env"}:
-            if not key:
-                parser.error(f"Set {args.api_key_env}")
-            from openai import OpenAI
-            client = OpenAI(api_key=key, base_url=args.base_url, timeout=180, max_retries=2)
+            client = create_llm_client(timeout=180, max_retries=2)
+            key = client.api_key
         for n, row in enumerate(rows, 1):
             path = args.output / "attempts" / f"sciworld_{row['item_id']}.json"
             resume_record = None

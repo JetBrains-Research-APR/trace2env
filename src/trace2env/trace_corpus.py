@@ -36,10 +36,13 @@ def _action_of(content: Any) -> tuple[str, dict[str, Any]]:
 
 
 def action_query(action: NormalizedAction | dict[str, Any]) -> str:
-    """Search tokens for an action: its type, programs, and command words (the first dozen)."""
+    """Search tokens for an action: its type, programs, command or ACP title (the first dozen)."""
     data = action.model_dump(mode="json") if isinstance(action, NormalizedAction) else dict(action)
     arguments = data.get("arguments") or {}
     tokens: list[str] = [str(data.get("type", ""))]
+    payload = arguments.get("payload")
+    if isinstance(payload, dict) and isinstance(payload.get("title"), str):
+        tokens.extend(payload["title"].split())
     for key in ("program", "programs", "command", "commands", "argv", "name", "tool"):
         value = arguments.get(key)
         if isinstance(value, str):

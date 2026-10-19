@@ -16,10 +16,10 @@ original test ordering and ReAct protocol: it selects the first 100 rows of
 `eval/alfworld_test.json` (`--num_examples 100` in Word2World), uses the bundled
 `mappings_test.json` IDs and reads the initial ReAct prompt from AgentGym's
 `AlfWorldAdapter`. Each attempt creates and resets a real ALFWorld TextWorld game.
-The 50-round cap matches Word2World's default. GPT-5-family chat requests omit
-temperature, top-p, and legacy `max_tokens`, matching the baseline's Azure
-branch and avoiding unsupported-parameter retry loops. The key comes from an
-environment variable, not a command-line argument.
+The 50-round cap matches Word2World's default. Chat requests use temperature
+`1.0` and omit top-p and legacy `max_tokens`. The model defaults to
+`openai/gpt-6.1-sol`; the gateway URL and key come from `.env` or the environment,
+not command-line credentials.
 
 The Word2World ALFWorld archive is required: its grammar changes `put` to
 `move` and adds `help`. Do not run the bundled full-data downloader if you want
@@ -38,15 +38,11 @@ arch -x86_64 work/exp-alfworld-real/.venv-x86/bin/python scripts/run_alfworld_re
   --test-file work/exp-alfworld-real/data/alfworld_test.json \
   --data-root work/exp-alfworld-real/simulator/alfworld \
   --output work/exp-alfworld-real/real-gpt56sol-k1 \
-  --model gpt-5.6-sol --limit 100 --attempts 1 --max-rounds 50 \
-  --api-key-env OPENAI_API_KEY
+  --model openai/gpt-6.1-sol --limit 100 --attempts 1 --max-rounds 50
 ```
 
-If the model is served by an OpenAI-compatible provider other than the default,
-add `--base-url "$OPENAI_BASE_URL"` with that variable set to its endpoint.
-
-For OpenRouter, set `--model openai/gpt-5.6-sol`, `--base-url https://openrouter.ai/api/v1`,
-and `--api-key-env OPENROUTER_API_KEY`. Keep `--max-workers 1`: TextWorld's shared
+Set `LITELLM_API_BASE` and `LITELLM_API_KEY` in the repository-root `.env`.
+The task agent uses that gateway for all model requests. Keep `--max-workers 1`: TextWorld's shared
 in-process state is not thread-safe. Separate processes can evaluate disjoint
 test slices with `--start-index` and `--limit`.
 

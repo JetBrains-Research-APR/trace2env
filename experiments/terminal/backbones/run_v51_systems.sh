@@ -10,15 +10,15 @@
 #                     fresh BACKBONE_CACHE_DIR so that rows whose input equals trace2env_v52's are fresh samples (noise)
 # One process per trajectory (the runner tracks state per trajectory); a system whose 30 predictions already exist is
 # not re-run. Then the unchanged gpt-5.2 judge and the model-boundary audit of information preservation.
-#   BACKBONE_MODEL=openai/gpt-5.6-sol REASONING_ARGS="--chat-reasoning-effort medium" AGENT_MAX_OUTPUT_TOKENS=16384 \
+#   BACKBONE_MODEL=openai/gpt-6.1-sol REASONING_ARGS="--chat-reasoning-effort medium" AGENT_MAX_OUTPUT_TOKENS=16384 \
 #     BACKBONE_CACHE_DIR=work/exp-v1_20_r=1/awb/cache-v2 [SYSTEMS="harness_only_v51 trace2env_v51"] run_v51_systems.sh
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-: "${OPENROUTER_API_KEY:?}"; : "${BACKBONE_MODEL:?}"
+: "${BACKBONE_MODEL:?}"
 EXP="work/exp-v1_20_r=1"; SLUG="${BACKBONE_SLUG:-$(echo "$BACKBONE_MODEL" | sed 's#.*/##; s/[^A-Za-z0-9.]/-/g')}"; B="$EXP/backbones/$SLUG"; mkdir -p "$B"
 read -r -a REASONING <<< "${REASONING_ARGS:---chat-reasoning-effort medium}"
 CACHE="${BACKBONE_CACHE_DIR:-$B/cache}"; CAP="${AGENT_MAX_OUTPUT_TOKENS:-16384}"; SYSTEMS="${SYSTEMS:-harness_only_v51 trace2env_v51}"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
+OR=(--provider chat --model "$BACKBONE_MODEL" "${REASONING[@]}" --max-output-tokens 65536)
 COMMON=(--mode agentic --allow-unvalidated --split all "${OR[@]}" --features default,evidence --agent-max-output-tokens "$CAP" --official-input --cache-dir "$CACHE")
 git rev-parse --short HEAD > "$B/code-commit-v51.txt"
 run_system() {  # LABEL PKG_REL [extra]
@@ -49,7 +49,7 @@ for label in $SYSTEMS; do
     *) echo "unknown system $label"; exit 2 ;;
   esac
 done
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "$EXP/awb/judge-cache")
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "$EXP/awb/judge-cache")
 for label in $SYSTEMS; do
   python -m trace2env awb-judge --predictions "$B/pred-$label.jsonl" --output "$B/judged-$label.jsonl" "${JUDGE[@]}" > "$B/judge-$label.log" 2>&1 &
 done

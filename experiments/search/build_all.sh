@@ -3,7 +3,6 @@
 # transition a paid call exactly once), then induce and compile the five folds in parallel.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."  # the repository root
-: "${OPENROUTER_API_KEY:?}"
 EXP="work/exp-search-cv"
 style=search
 for f in 0 1 2 3 4; do STAGES="ingest extract" bash "$EXP/run_reconstruction.sh" "$style-f$f" || echo "[$(date -Is)] $style-f$f EXTRACT FAILED"; done

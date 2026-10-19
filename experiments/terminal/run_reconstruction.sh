@@ -3,8 +3,8 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 EXP="work/exp-v1_20_r=1"
-OR=(--description "@$EXP/description.md" --max-prompt-bytes 600000 --max-output-tokens 65536 --model openai/gpt-5.6-sol
-    --provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --chat-reasoning-effort medium --induction-batch-size 100)
+OR=(--description "@$EXP/description.md" --max-prompt-bytes 600000 --max-output-tokens 65536 --model openai/gpt-6.1-sol
+    --provider chat --chat-reasoning-effort medium --induction-batch-size 100)
 echo "[$(date -Is)] ingest"
 python scripts/pilot_stages.py "$EXP" ingest --episodes "$EXP/traces/reconstruction" --split-manifest "$EXP/traces/split_manifest.json" \
   --environment-id tb2-terminal --name "Terminal-Bench 2.0 terminal (Terminus-2 / tmux shell)" --domain terminal "${OR[@]}" \

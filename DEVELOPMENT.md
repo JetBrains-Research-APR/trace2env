@@ -5,8 +5,8 @@ code's **package**; the per-episode state and audit live in a **session**; the s
 
 ## Commands
 
-Python 3.11+; `pydantic` v2 and `openai` are the only runtime dependencies (`pyproject.toml`, hatchling). Run everything
-from the repository root.
+Python 3.11+; `pydantic` v2, `openai`, and `python-dotenv` are the runtime dependencies
+(`pyproject.toml`, hatchling). Run everything from the repository root.
 
 ```bash
 git submodule update --init baseline/Word2World     # three ALFWorld tests read its files
@@ -36,8 +36,11 @@ python -m trace2env awb-score --predictions work/awb-smoke/predictions.jsonl
 ```
 
 Commands that call a model (`reconstruct`, `awb-run` without `--no-model`, `awb-judge`, `simulate --agent`, the
-`envscaler-long-horizon` loop) read the key from the environment variable named by `--api-key-env` (default
-`OPENAI_API_KEY`) and accept `--base-url` for any OpenAI-compatible server. Structured roles use the Responses API or,
+`envscaler-long-horizon` loop) use `llm_config.create_llm_client`, which reads `LITELLM_API_BASE` and
+`LITELLM_API_KEY` from the repository-root `.env` (environment variables override the file). All model
+traffic goes through the internal LiteLLM gateway; missing settings fail without an external-provider fallback.
+Non-judge calls default to `openai/gpt-6.1-sol` and temperature `1.0`; judges retain temperature `0.6`.
+See [docs/LITELLM.md](docs/LITELLM.md) for overrides. Structured roles use the Responses API or,
 with `--provider chat`, Chat Completions with a JSON schema (`--chat-schema-mode json_object` quotes the schema in the
 system text for servers that reject schemas; `--chat-reasoning-effort`, `--max-output-tokens`, `--chat-provider-json`
 tune the call). Pass `--cache-dir` so interrupted builds and evaluations resume: calls are content-addressed. Live

@@ -22,18 +22,18 @@ ROWS_ENV="${2:?usage: run_eval.sh prompting|tracerag|envpack_prompting|harness_o
 PACKAGE_ENV="${3:-$ROWS_ENV}"
 PY="${PYTHON:-python}"
 EXP="work/exp-envscaler"; A="${ROWS_DIR:-$EXP/$ROWS_ENV/awb}"
-MODEL="${MODEL:-openai/gpt-5.6-sol}"; BASE_URL="${BASE_URL:-https://openrouter.ai/api/v1}"
-API_KEY_ENV="${API_KEY_ENV:-OPENROUTER_API_KEY}"; PROVIDER="${PROVIDER:-chat}"
-OR=(--provider "$PROVIDER" --base-url "$BASE_URL" --api-key-env "$API_KEY_ENV" --model "$MODEL" --chat-reasoning-effort medium --max-output-tokens 65536)
+MODEL="${MODEL:-openai/gpt-6.1-sol}"
+BASE_URL="$("$PY" -c 'from trace2env.llm_config import litellm_base_url; print(litellm_base_url() or "")')"
+PROVIDER="${PROVIDER:-chat}"
+OR=(--provider "$PROVIDER" --model "$MODEL" --chat-reasoning-effort medium --max-output-tokens 65536)
 read -r -a EXTRA_ARGS <<< "${EXTRA:-}"
-if [ -z "${DRY_RUN:-}" ]; then : "${!API_KEY_ENV:?set $API_KEY_ENV first}"; fi
 [ -f "$A/shards/shard0.jsonl" ] || { echo "no shards in $A/shards; run $EXP/run_export.sh" >&2; exit 1; }
 case "$SYSTEM" in
   prompting)
     LABEL="${LABEL:-prompting}"
-    # The baseline is the official inference: awb-run's free-text defaults (temperature 0.6, 32768 tokens, no reasoning
-    # parameter) are upstream eval.py's; the structured-role flags in OR are not used by this mode.
-    SETTINGS="official inference defaults: temperature 0.6, max_tokens 32768, no reasoning parameter"
+    # Use the official inference layout with the current sampling default.
+    # Structured-role flags in OR are not used by this mode.
+    SETTINGS="official inference layout: temperature 1.0, max_tokens 32768, no reasoning parameter"
     MODE=(--mode prompting) ;;
   tracerag)
     LABEL="${LABEL:-tracerag}"

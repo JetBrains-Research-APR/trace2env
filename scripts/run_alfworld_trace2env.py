@@ -19,6 +19,8 @@ import types
 from pathlib import Path
 from typing import Any
 
+from trace2env.llm_config import create_llm_client, litellm_base_url
+
 from collect_alfworld_trace2env import normalize_action, signature
 from run_alfworld_prompting_wm import DEFAULT_WORK, description_builder, split_success_marker, write_json
 
@@ -138,7 +140,7 @@ def run_one(context: dict[str, Any], package_dir: Path, output: Path, client: An
     error = None
     for turn_number in range(1, max_steps + 1):
         try:
-            response = client.chat.completions.create(model=task_model, messages=agent_history)
+            response = client.chat.completions.create(model=task_model, messages=agent_history, temperature=1.0)
             react = response.choices[0].message.content
             if not isinstance(react, str) or not react.strip():
                 raise RuntimeError("Task agent returned no ReAct text")
@@ -185,10 +187,8 @@ def main() -> int:
     parser.add_argument("--start-index", type=int, default=0,
                         help="Zero-based offset in the 100 held-out Word2World tasks")
     parser.add_argument("--max-steps", type=int, default=50)
-    parser.add_argument("--task-model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--wm-model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
-    parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--task-model", default="openai/gpt-6.1-sol")
+    parser.add_argument("--wm-model", default="openai/gpt-6.1-sol")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.limit < 1 or args.start_index < 0 or args.start_index + args.limit > 100 or args.max_steps < 1:
@@ -204,7 +204,7 @@ def main() -> int:
                  "trace_manifest_sha256": sha256(args.work_root / "trace2env-40-success-v1" / "trace_manifest.json"),
                  "protocol_sha256": hashlib.sha256(PROTOCOL.encode("utf-8")).hexdigest(),
                  "task_model": args.task_model, "wm_model": args.wm_model,
-                 "base_url": args.base_url, "max_steps": args.max_steps,
+                 "base_url": litellm_base_url(), "max_steps": args.max_steps,
                  "communication": "current action plus fixed protocol; prior turns loaded from per-session episodic memory"}
     selection_path = args.output / "selection.json"
     if selection_path.is_file() and json.loads(selection_path.read_text(encoding="utf-8")) != selection:
@@ -214,12 +214,9 @@ def main() -> int:
         print(json.dumps({"selected": len(contexts), "first": contexts[0]["task"],
                           "last": contexts[-1]["task"]}, indent=2))
         return 0
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        parser.error(f"Set {args.api_key_env} in the environment")
-    from openai import OpenAI
+    client = create_llm_client(timeout=180, max_retries=2)
+    api_key = client.api_key
 
-    client = OpenAI(api_key=api_key, base_url=args.base_url, timeout=180, max_retries=2)
     records = []
     for index, context in enumerate(contexts, 1):
         item_id = context["task"]["item_id"]

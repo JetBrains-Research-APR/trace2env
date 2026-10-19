@@ -7,9 +7,7 @@ JUDGE_TARGET_BACKBONE="${JUDGE_TARGET_BACKBONE:-deepseek-v41-flash}"
 case "$JUDGE_TARGET_BACKBONE" in deepseek-v41-flash|gpt56sol) ;; *) echo "unknown backbone: $JUDGE_TARGET_BACKBONE" >&2; exit 1 ;; esac
 PYTHON="$PWD/.venv/bin/python"
 JUDGE_MODEL="${JUDGE_MODEL:-openai/gpt-5.2}"
-JUDGE_BASE_URL="${JUDGE_BASE_URL:-https://openrouter.ai/api/v1}"
-JUDGE_API_KEY_ENV="${JUDGE_API_KEY_ENV:-OPENROUTER_API_KEY}"
-export PYTHON JUDGE_MODEL JUDGE_BASE_URL JUDGE_API_KEY_ENV
+export PYTHON JUDGE_MODEL
 "$PYTHON" "$ROOT/validate.py"
 "$PYTHON" - "$ROOT" "$JUDGE_TARGET_BACKBONE" <<'PYEOF'
 import json, sys
@@ -33,11 +31,10 @@ for env in plan["environment_order"]:
 print("Six prediction sets verified for judging")
 PYEOF
 if [ -z "${DRY_RUN:-}" ]; then
-  : "${!JUDGE_API_KEY_ENV:?set $JUDGE_API_KEY_ENV first}"
   "$PYTHON" - <<'PYEOF'
 import os, sys
-from openai import OpenAI
-client = OpenAI(api_key=os.environ[os.environ["JUDGE_API_KEY_ENV"]], base_url=os.environ["JUDGE_BASE_URL"], max_retries=0)
+from trace2env.llm_config import create_llm_client
+client = create_llm_client()
 try:
     client.chat.completions.create(model=os.environ["JUDGE_MODEL"], messages=[{"role": "user", "content": "Reply OK."}], max_tokens=16, temperature=0.6)
 except Exception as error:

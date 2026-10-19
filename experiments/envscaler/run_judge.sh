@@ -11,11 +11,10 @@ ROWS_ENV="${1:?usage: run_judge.sh ROWS_ENV LABEL [LABEL ...]}"; shift
 [ "$#" -ge 1 ] || { echo "usage: run_judge.sh ROWS_ENV LABEL [LABEL ...]" >&2; exit 1; }
 PY="${PYTHON:-python}"
 A="${ROWS_DIR:-work/exp-envscaler/$ROWS_ENV/awb}"
-JUDGE_MODEL="${JUDGE_MODEL:-openai/gpt-5.2}"; JUDGE_BASE_URL="${JUDGE_BASE_URL:-https://openrouter.ai/api/v1}"
-JUDGE_API_KEY_ENV="${JUDGE_API_KEY_ENV:-OPENROUTER_API_KEY}"
-JUDGE=(--judge-model "$JUDGE_MODEL" --judge-base-url "$JUDGE_BASE_URL" --judge-api-key-env "$JUDGE_API_KEY_ENV")
+JUDGE_MODEL="${JUDGE_MODEL:-openai/gpt-5.2}"
+
+JUDGE=(--judge-model "$JUDGE_MODEL")
 if [ "${CACHE:-0}" = 1 ]; then JUDGE+=(--cache-dir "${JUDGE_CACHE_DIR:-$A/judge-cache}"); fi
-if [ -z "${DRY_RUN:-}" ]; then : "${!JUDGE_API_KEY_ENV:?set $JUDGE_API_KEY_ENV first}"; fi
 for name in "$@"; do
   # Judging reads the per-shard predictions, while deterministic scoring and reports commonly read the
   # merged file.  Refuse to score if a resumed run updated only one representation: otherwise missing or

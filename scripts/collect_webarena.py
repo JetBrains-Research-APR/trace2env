@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Collect WebArena traces through Playwright MCP with a task agent, in the AgentWorldBench web split's own format.
 
-    export OPENROUTER_API_KEY=$(cat ~/.config/trace2env/openrouter_key)
+    # Set LITELLM_API_BASE and LITELLM_API_KEY in .env.
     python scripts/collect_webarena.py --task-list work/webarena/test.raw.json --ids 105,106,576 \
         --output work/webarena/traces --mcp-cli scripts/webarena/node_modules/@playwright/mcp/cli.js \
-        --node "$(command -v node)" --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.6-sol \
-        --api-key-env OPENROUTER_API_KEY
+        --node "$(command -v node)" --model openai/gpt-6.1-sol
 
 One Playwright MCP server per task (``--isolated``: a fresh, logged-out browser profile), the pinned version that
 reproduces the benchmark's result text (``### Ran Playwright code`` / ``### Page`` / ``### Snapshot`` / ``### Events``:
@@ -30,6 +29,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+
+from trace2env.llm_config import create_llm_client
 
 from trace2env.webarena_traces import (  # noqa: E402
     AGENT_TOOLS, SITES, agent_system_prompt, build_episode, final_answer, load_tasks, prune_tool_schema, site_of_task,
@@ -151,11 +152,10 @@ class ScriptedModel:
 
 
 class OpenAIToolModel:
-    def __init__(self, base_url: str, api_key: str, model: str, reasoning_effort: str | None, max_output_tokens: int,
+    def __init__(self, model: str, reasoning_effort: str | None, max_output_tokens: int,
                  provider_json: str | None = None):
-        from openai import OpenAI
         from trace2env.llm import CLIENT_MAX_RETRIES, CLIENT_TIMEOUT_S
-        self.client = OpenAI(base_url=base_url, api_key=api_key, max_retries=CLIENT_MAX_RETRIES, timeout=CLIENT_TIMEOUT_S)
+        self.client = create_llm_client(max_retries=CLIENT_MAX_RETRIES, timeout=CLIENT_TIMEOUT_S)
         self.model, self.reasoning_effort, self.max_output_tokens = model, reasoning_effort, max_output_tokens
         self.provider_json = json.loads(provider_json) if provider_json else None
 
@@ -169,7 +169,7 @@ class OpenAIToolModel:
 
         def request():
             return self.client.chat.completions.create(model=self.model, messages=messages, tools=tools, tool_choice="auto",
-                                                       parallel_tool_calls=False, max_tokens=self.max_output_tokens, extra_body=extra)
+                                                       parallel_tool_calls=False, max_tokens=self.max_output_tokens, temperature=1.0, extra_body=extra)
         response = call_with_retry(request, role="webarena_task_agent")
         choice = response.choices[0]
         message: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
@@ -265,9 +265,7 @@ def main() -> int:
     parser.add_argument("--mcp-cli", default=str(DEFAULT_MCP_CLI))
     parser.add_argument("--resolve-to", default="127.0.0.1", help="IP the benchmark hostnames resolve to ('' to leave DNS alone)")
     parser.add_argument("--no-sandbox", action="store_true", help="pass --no-sandbox to Playwright MCP")
-    parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
-    parser.add_argument("--model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--model", default="openai/gpt-6.1-sol")
     parser.add_argument("--reasoning-effort", default="medium")
     parser.add_argument("--max-output-tokens", type=int, default=8192)
     parser.add_argument("--provider-json", default=None)
@@ -299,11 +297,7 @@ def main() -> int:
         model: Any = ScriptedModel(script["calls"], script.get("final", "DONE"))
         agent = "scripted"
     else:
-        api_key = os.environ.get(args.api_key_env)
-        if not api_key:
-            print(f"{args.api_key_env} is not set", file=sys.stderr)
-            return 2
-        model = OpenAIToolModel(args.base_url, api_key, args.model, args.reasoning_effort, args.max_output_tokens, args.provider_json)
+        model = OpenAIToolModel(args.model, args.reasoning_effort, args.max_output_tokens, args.provider_json)
         agent = args.model
 
     episode_paths: list[Path] = []

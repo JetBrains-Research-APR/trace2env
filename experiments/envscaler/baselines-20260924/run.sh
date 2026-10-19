@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Frozen 3-environment x 2-backbone x 2-baseline matrix.
 # Order: env 160, 172, 174; within each, GPT then DeepSeek; within each pair, EnvPack then harness-only v5.1.
-# Requires the key for each selected backbone. DRY_RUN=1 prints every awb-run command.
+# Uses the LiteLLM URL and key from .env. DRY_RUN=1 prints every awb-run command.
 # ONLY_BACKBONE can select gpt56sol or deepseek-v41-flash.
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
@@ -18,15 +18,11 @@ for env in env_160_rl env_172_rl env_174_rl; do
     if [ -n "${ONLY_BACKBONE:-}" ] && [ "$backbone" != "$ONLY_BACKBONE" ]; then continue; fi
     case "$backbone" in
       gpt56sol)
-        model=openai/gpt-5.6-sol
-        base_url=https://openrouter.ai/api/v1
-        api_key_env=OPENROUTER_API_KEY
+        model=openai/gpt-6.1-sol
         agent_extra='--official-input --features default,evidence --agent-max-output-tokens 16384 --effect-rejection fail'
         ;;
       deepseek-v41-flash)
-        model=deepseek-flash
-        base_url=https://api.deepseek.com
-        api_key_env=DEEPSEEK_API_KEY
+        model="${DEEPSEEK_MODEL:?set DEEPSEEK_MODEL to a model ID available in LiteLLM}"
         agent_extra='--official-input --features default,evidence --agent-max-output-tokens 65536 --effect-rejection fail --chat-reasoning-effort low --chat-schema-mode json_object --agent-transport tools'
         ;;
     esac
@@ -50,7 +46,7 @@ for env in env_160_rl env_172_rl env_174_rl; do
         continue
       fi
       echo "RUN $env $backbone $baseline"
-      ROWS_DIR="$ROWS_DIR" MODEL="$model" BASE_URL="$base_url" API_KEY_ENV="$api_key_env" PROVIDER=chat \
+      ROWS_DIR="$ROWS_DIR" MODEL="$model" PROVIDER=chat \
         PKG="$package" LABEL="$label" EXTRA="$extra" DRY_RUN="${DRY_RUN:-}" \
         work/exp-envscaler/run_eval.sh "$system" "$env"
       if [ -z "${DRY_RUN:-}" ]; then

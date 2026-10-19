@@ -19,6 +19,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from trace2env.llm_config import create_llm_client, litellm_base_url
+
 from run_alfworld_real import BASELINE, load_tasks, original_react_prompt, parse_react_action, run_attempt, write_json
 
 
@@ -128,20 +130,18 @@ def choose_candidates(test_file: Path, data_root: Path) -> dict[str, Any]:
 
 
 def collect(selection: dict[str, Any], output: Path, *, data_root: Path,
-            model: str, base_url: str, key_env: str, target: int,
+            model: str, target: int,
             max_new_attempts: int | None = None) -> dict[str, Any]:
     intro, ack = original_react_prompt()
     config = {"selection_sha256": file_sha256(output / "selection.json"),
-              "model": model, "base_url": base_url, "max_rounds": 50,
+              "model": model, "base_url": litellm_base_url(), "max_rounds": 50,
               "react_prompt_sha256": hashlib.sha256((intro + ack).encode("utf-8")).hexdigest()}
     config_path = output / "collection_config.json"
     if config_path.is_file() and json.loads(config_path.read_text(encoding="utf-8")) != config:
         raise ValueError("Collection model or prompt changed; use a fresh output directory")
     write_json(config_path, config)
-    api_key = os.environ.get(key_env)
-    if not api_key:
-        raise ValueError(f"Set {key_env} in the environment; never put a key in a command argument or file")
-    from openai import OpenAI
+    client = create_llm_client(timeout=180, max_retries=2)
+    api_key = client.api_key
 
     source = BASELINE / "AgentGym" / "agentenv-alfworld"
     os.environ["ALFWORLD_DATA"] = str(data_root.resolve())
@@ -150,7 +150,6 @@ def collect(selection: dict[str, Any], output: Path, *, data_root: Path,
 
     wrapper = ALFWorld_Wrapper(data_path=str(data_root.resolve()),
                                config_path=str(source / "configs" / "base_config.yaml"))
-    client = OpenAI(api_key=api_key, base_url=base_url, timeout=180, max_retries=2)
     successes: list[int] = []
     attempted: list[int] = []
     errors: list[int] = []
@@ -195,7 +194,7 @@ def collect(selection: dict[str, Any], output: Path, *, data_root: Path,
                "error_ids": errors, "new_attempts": new_attempts,
                "paused_for_api_errors": consecutive_api_errors >= 3,
                "selection_sha256": file_sha256(output / "selection.json"),
-               "model": model, "base_url": base_url,
+               "model": model, "base_url": litellm_base_url(),
                "complete": len(successes) == target}
     write_json(output / "collection_summary.json", summary)
     return summary
@@ -250,9 +249,7 @@ def main() -> int:
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT)
     parser.add_argument("--target-successes", type=int, default=40)
     parser.add_argument("--max-new-attempts", type=int)
-    parser.add_argument("--model", default="openai/gpt-5.6-sol")
-    parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
-    parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--model", default="openai/gpt-6.1-sol")
     args = parser.parse_args()
     if args.target_successes < 1:
         parser.error("target-successes must be positive")
@@ -270,7 +267,6 @@ def main() -> int:
         parser.error("Run select first; the frozen selection must match source files")
     if args.command == "collect":
         result = collect(expected, args.output, data_root=args.data_root, model=args.model,
-                         base_url=args.base_url, key_env=args.api_key_env,
                          target=args.target_successes, max_new_attempts=args.max_new_attempts)
         print(json.dumps(result, indent=2))
         return 0 if result["complete"] else 1

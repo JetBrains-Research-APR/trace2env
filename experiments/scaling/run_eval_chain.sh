@@ -3,11 +3,11 @@
 # time, then judge them with the official judge. Outputs under work/exp-scaling/<name>/awb/.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-: "${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY first}"
+
 SH="work/exp-v1_20_r=1/awb/shards"; JC="work/exp-v1_20_r=1/awb/judge-cache"
-OR=(--provider chat --base-url https://openrouter.ai/api/v1 --api-key-env OPENROUTER_API_KEY --model openai/gpt-5.6-sol --chat-reasoning-effort medium --max-output-tokens 65536)
+OR=(--provider chat --model openai/gpt-6.1-sol --chat-reasoning-effort medium --max-output-tokens 65536)
 V3=(--features default,evidence --agent-max-output-tokens 16384)
-JUDGE=(--judge-model openai/gpt-5.2 --judge-base-url https://openrouter.ai/api/v1 --judge-api-key-env OPENROUTER_API_KEY --cache-dir "$JC")
+JUDGE=(--judge-model openai/gpt-5.2 --cache-dir "$JC")
 predict() {
   local NAME="$1"; local EXP="work/exp-scaling/$NAME"; local PKG="$EXP/packages/$NAME"; local A="$EXP/awb"
   mkdir -p "$A"; sha256sum "$PKG/manifest.json" | cut -c1-16 > "$A/package-manifest.sha256"
